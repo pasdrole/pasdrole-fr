@@ -169,7 +169,7 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
     <header style={{ background: "rgba(21,19,24,0.9)", backdropFilter: "blur(14px)", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ maxWidth: 1220, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
         <div onClick={() => setNav({ page: "home" })} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-          <PhotoPlaceholder size={38} label="Logo PasDrôle.fr" />
+          <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
           <div>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 2, color: C.text, lineHeight: 1 }}>
               PAS<span style={{ color: "#E0574A" }}>DRÔLE</span>.FR
