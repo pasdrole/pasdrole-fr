@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Star, Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield,
+  Mic, Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield,
   TrendingUp, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2,
 } from "lucide-react";
@@ -27,13 +27,13 @@ function gradientFor(name) {
 function initials(name) { return (name || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase(); }
 
 /* ---------- Atoms ---------- */
-function Stars({ value, size = 14, max = 5 }) {
+function Micros({ value, size = 14, max = 10 }) {
+  const filled = Math.round(value);
   return (
     <div style={{ display: "flex", gap: 1 }}>
-      {Array.from({ length: max }).map((_, i) => {
-        const filled = value - i;
-        return <Star key={i} size={size} fill={filled >= 0.75 ? C.gold : "none"} stroke={C.gold} strokeWidth={1.4} style={{ opacity: filled > 0 && filled < 0.75 ? 0.5 : 1 }} />;
-      })}
+      {Array.from({ length: max }).map((_, i) => (
+        <Mic key={i} size={size} fill={i < filled ? C.gold : "none"} stroke={C.gold} strokeWidth={1.4} />
+      ))}
     </div>
   );
 }
@@ -229,7 +229,7 @@ function perCriteriaAvg(ratings) {
 function overallAvg(ratings) {
   const per = perCriteriaAvg(ratings);
   const vals = Object.values(per).filter((v) => v > 0);
-  return { avg10: vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length) * 2 : 0, votes: ratings.length };
+  return { avg10: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0, votes: ratings.length };
 }
 
 /* ---------- Hero / listing ---------- */
@@ -256,7 +256,7 @@ function Hero({ comicsWithStats }) {
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold, margin: "6px 0 2px" }}>
             {globalAvg > 0 ? globalAvg.toFixed(1).replace(".", ",") : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
           </div>
-          <Stars value={globalAvg / 2} />
+          <Micros value={globalAvg} />
           <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
         </div>
       </div>
@@ -369,7 +369,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
 
   const { avg10, votes } = overallAvg(ratings);
   const per = perCriteriaAvg(ratings);
-  const radarData = CRITERIA.map((c) => ({ subject: c.label, value: per[c.key] || 0, fullMark: 5 }));
+  const radarData = CRITERIA.map((c) => ({ subject: c.label, value: per[c.key] || 0, fullMark: 10 }));
   const canSubmitRating = CRITERIA.every((c) => typeof draft[c.key] === "number" && draft[c.key] > 0);
 
   const submitRating = async () => {
@@ -413,7 +413,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: "wrap" }}>
               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? avg10.toFixed(1).replace(".", ",") : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
-              <Stars value={avg10 / 2} size={18} />
+              <Micros value={avg10} size={18} />
               <span style={{ fontSize: 12, color: C.dim2 }}>{votes} vote{votes !== 1 ? "s" : ""}</span>
             </div>
             <p style={{ color: C.dim, fontSize: 14, lineHeight: 1.7, marginBottom: 14 }}>{comic.bio}</p>
@@ -425,7 +425,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
                   <RadarChart data={radarData} outerRadius="75%">
                     <PolarGrid stroke={C.border} />
                     <PolarAngleAxis dataKey="subject" tick={{ fill: C.dim, fontSize: 11 }} />
-                    <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
+                    <PolarRadiusAxis domain={[0, 10]} tick={false} axisLine={false} />
                     <Radar dataKey="value" stroke={C.gold} fill={C.gold} fillOpacity={0.32} />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -454,12 +454,12 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
             <SectionTitle>{myRating ? "MODIFIER MA NOTE" : "NOTER CET HUMORISTE"}</SectionTitle>
             {CRITERIA.map((c) => (
-              <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
-                <span style={{ fontSize: 13, color: C.text }}>{c.label}</span>
-                <div style={{ display: "flex", gap: 2 }}>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-                      <Star size={17} fill={(draft[c.key] || 0) >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.5} />
+              <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13, gap: 8 }}>
+                <span style={{ fontSize: 13, color: C.text, flexShrink: 0 }}>{c.label}</span>
+                <div style={{ display: "flex", gap: 1 }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                    <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 1 }}>
+                      <Mic size={13} fill={(draft[c.key] || 0) >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.5} />
                     </button>
                   ))}
                 </div>
