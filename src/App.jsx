@@ -15,6 +15,14 @@ const C = {
   green: "#3FB878", red: "#E0574A",
 };
 
+const GENRE_OPTIONS = [
+  "Sketch", "Satire", "Stand-up", "Imitation", "Impro", "Parodie", "Absurde",
+  "Autodérision", "Storytelling", "Chronique", "Cynisme", "Provocation",
+  "Observation", "Société", "Politique", "Introspection", "Féminisme",
+  "Digital", "One-man-show", "Duo", "Jeu de mots", "Poésie", "Ironie",
+  "Physique", "Franc-parler", "Punchlines",
+];
+
 const AVATAR_GRADIENTS = [
   ["#F0B429", "#C4402F"], ["#6C63C9", "#332C6B"], ["#3D9E7C", "#1A4636"], ["#D9695A", "#732A20"],
   ["#4A90B8", "#1C4256"], ["#B87FC9", "#54326B"], ["#E0A03F", "#7A4A1A"], ["#5FA8D3", "#264A63"],
@@ -235,6 +243,16 @@ function perCriteriaAvg(ratings) {
   });
   return out;
 }
+function computeAge(dateNaissance) {
+  if (!dateNaissance) return null;
+  const birth = new Date(dateNaissance);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
 function overallAvg(ratings) {
   const per = perCriteriaAvg(ratings);
   const vals = Object.values(per).filter((v) => v > 0);
@@ -430,7 +448,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
               <div>
                 <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
                 <div style={{ display: "flex", gap: 7, marginTop: 8, flexWrap: "wrap" }}>
-                  <Pill>{comic.pays}</Pill><Pill>depuis {comic.debut}</Pill>{comic.genres && <Pill>{comic.genres}</Pill>}
+                  <Pill>{comic.pays}</Pill><Pill>depuis {comic.debut}</Pill>{computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}{comic.genres && <Pill>{comic.genres}</Pill>}
                 </div>
               </div>
             </div>
@@ -541,7 +559,7 @@ function MyActivityPage({ user, profile, onOpenComic }) {
 /* ---------- Admin ---------- */
 function AdminPage({ onRefreshPublic }) {
   const [comics, setComics] = useState([]);
-  const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "" });
+  const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
   const [bulkRaw, setBulkRaw] = useState("");
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
 
@@ -566,9 +584,10 @@ function AdminPage({ onRefreshPublic }) {
     if (!form.nom.trim()) return;
     await api.createComic({
       nom: form.nom.trim(), pays: form.pays, debut: form.debut, genres: form.genres, bio: form.bio,
+      date_naissance: form.date_naissance || null,
       spectacles: form.spectaclesRaw.split(",").map((s) => s.trim()).filter(Boolean), status,
     });
-    setForm({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "" });
+    setForm({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
     await load(); onRefreshPublic();
   };
 
@@ -646,10 +665,40 @@ function AdminPage({ onRefreshPublic }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
             <SectionTitle>AJOUT RAPIDE</SectionTitle>
-            {["nom", "pays", "debut", "genres", "spectaclesRaw"].map((k) => (
+            {["nom", "pays", "debut", "spectaclesRaw"].map((k) => (
               <input key={k} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={k}
                 style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, marginBottom: 10 }} />
             ))}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Date de naissance (pour l'âge auto)</div>
+              <input type="date" value={form.date_naissance} onChange={(e) => setForm({ ...form, date_naissance: e.target.value })}
+                style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: C.dim2, marginBottom: 6 }}>Genres (clique pour sélectionner)</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {GENRE_OPTIONS.map((g) => {
+                  const selected = (form.genres || "").split(",").map((s) => s.trim()).includes(g);
+                  return (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => {
+                        const current = (form.genres || "").split(",").map((s) => s.trim()).filter(Boolean);
+                        const next = selected ? current.filter((x) => x !== g) : [...current, g];
+                        setForm({ ...form, genres: next.join(", ") });
+                      }}
+                      style={{
+                        fontSize: 11.5, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+                        border: `1px solid ${selected ? C.gold : C.border}`,
+                        background: selected ? "rgba(240,180,41,0.15)" : "transparent",
+                        color: selected ? C.gold : C.dim,
+                      }}
+                    >{g}</button>
+                  );
+                })}
+              </div>
+            </div>
             <textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={3} placeholder="Bio"
               style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, marginBottom: 12, resize: "vertical" }} />
             <div style={{ display: "flex", gap: 10 }}>
