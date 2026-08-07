@@ -170,7 +170,7 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
       <div style={{ maxWidth: 1220, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
         <div onClick={() => setNav({ page: "home" })} style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
   <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ height: 168, width: "auto" }} />
-  <div style={{ fontSize: 8.5, color: C.dim2, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
+  <div style={{ fontSize: 10.5, color: C.text, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
 </div>
         <nav style={{ display: "flex", gap: 2 }}>
           {items.map((it) => (
