@@ -479,10 +479,10 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
             {CRITERIA.map((c) => (
               <div key={c.key} style={{ marginBottom: 15 }}>
                 <span style={{ fontSize: 13, color: C.text, display: "block", marginBottom: 6 }}>{c.label}</span>
-                <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 1 }}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                    <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-                      <MicIcon size={26} filled={(draft[c.key] || 0) >= n} />
+                    <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 1, flexShrink: 0 }}>
+                      <MicIcon size={22} filled={(draft[c.key] || 0) >= n} />
                     </button>
                   ))}
                 </div>
