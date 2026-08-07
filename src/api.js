@@ -56,6 +56,18 @@ export async function deleteComic(id) {
   if (error) throw error;
 }
 
+// Upload une photo dans le bucket Storage "image", puis met à jour photo_url sur l'humoriste.
+export async function uploadComicPhoto(comicId, file) {
+  const ext = file.name.split(".").pop();
+  const path = `${comicId}-${Date.now()}.${ext}`;
+  const { error: upErr } = await supabase.storage.from("image").upload(path, file, { upsert: true });
+  if (upErr) throw upErr;
+  const { data } = supabase.storage.from("image").getPublicUrl(path);
+  const { error: updErr } = await supabase.from("comics").update({ photo_url: data.publicUrl }).eq("id", comicId);
+  if (updErr) throw updErr;
+  return data.publicUrl;
+}
+
 // ---------- Notes ----------
 export async function fetchRatingsForComic(comicId) {
   const { data, error } = await supabase.from("ratings").select("*").eq("comic_id", comicId);
