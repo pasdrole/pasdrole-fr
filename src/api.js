@@ -57,12 +57,17 @@ export async function deleteComic(id) {
 }
 
 // ---------- Notes ----------
-export async function fetchRatingsForComic(comicId) {
-  const { data, error } = await supabase.from("ratings").select("*").eq("comic_id", comicId);
-  if (error) throw error;
-  return data;
-}
 
+export async function fetchReviewsForComic(comicId) {
+  const { data: reviews, error } = await supabase.from("reviews").select("*").eq("comic_id", comicId).order("created_at", { ascending: false });
+  if (error) throw error;
+  if (!reviews.length) return [];
+  const userIds = [...new Set(reviews.map((r) => r.user_id))];
+  const { data: profiles, error: e2 } = await supabase.from("profiles").select("id, pseudo").in("id", userIds);
+  if (e2) throw e2;
+  const pseudoById = Object.fromEntries((profiles || []).map((p) => [p.id, p.pseudo]));
+  return reviews.map((r) => ({ ...r, profiles: { pseudo: pseudoById[r.user_id] || "Anonyme" } }));
+}
 export async function fetchMyRating(comicId, userId) {
   const { data, error } = await supabase.from("ratings").select("*").eq("comic_id", comicId).eq("user_id", userId).maybeSingle();
   if (error) throw error;
