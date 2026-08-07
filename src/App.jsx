@@ -375,15 +375,29 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
   const submitRating = async () => {
     if (!user) return onRequireAuth();
     setSaving(true);
-    try { await api.upsertRating(comicId, user.id, draft); await load(); }
-    finally { setSaving(false); }
+    try {
+      await api.upsertRating(comicId, user.id, draft);
+      await load();
+    } catch (e) {
+      console.error("Erreur enregistrement note:", e);
+      alert("Impossible d'enregistrer la note : " + (e.message || "erreur inconnue"));
+    } finally {
+      setSaving(false);
+    }
   };
   const submitReview = async () => {
     if (!user) return onRequireAuth();
     if (!reviewDraft.trim()) return;
     setSaving(true);
-    try { await api.upsertReview(comicId, user.id, reviewDraft.trim()); await load(); }
-    finally { setSaving(false); }
+    try {
+      await api.upsertReview(comicId, user.id, reviewDraft.trim());
+      await load();
+    } catch (e) {
+      console.error("Erreur enregistrement avis:", e);
+      alert("Impossible d'enregistrer l'avis : " + (e.message || "erreur inconnue"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loadError) {
@@ -459,7 +473,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
                 <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                     <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-                      <Mic size={20} fill={(draft[c.key] || 0) >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.5} />
+                      <Mic size={26} fill={(draft[c.key] || 0) >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.5} />
                     </button>
                   ))}
                 </div>
