@@ -557,6 +557,31 @@ function AdminPage({ onRefreshPublic }) {
     await load(); onRefreshPublic();
   };
 
+  // Parseur CSV "propre" : respecte les guillemets, donc une virgule DANS
+  // "Sketch, Parodie" ne casse plus le découpage des colonnes suivantes.
+  const parseCSVLine = (line) => {
+    const result = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else { inQuotes = false; }
+        } else {
+          cur += ch;
+        }
+      } else {
+        if (ch === '"') inQuotes = true;
+        else if (ch === ",") { result.push(cur); cur = ""; }
+        else cur += ch;
+      }
+    }
+    result.push(cur);
+    return result;
+  };
+
   const doBulkImport = async () => {
     const trimmed = bulkRaw.trim();
     if (!trimmed) return;
@@ -565,9 +590,9 @@ function AdminPage({ onRefreshPublic }) {
       rows = JSON.parse(trimmed);
     } else {
       const lines = trimmed.split("\n").filter((l) => l.trim());
-      const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+      const header = parseCSVLine(lines[0]).map((h) => h.trim().toLowerCase());
       for (let i = 1; i < lines.length; i++) {
-        const cells = lines[i].split(",");
+        const cells = parseCSVLine(lines[i]);
         const row = {};
         header.forEach((h, idx) => (row[h] = (cells[idx] || "").trim()));
         rows.push({ nom: row.nom, pays: row.pays, debut: row.debut, genres: row.genres, bio: row.bio, spectacles: (row.spectacles || "").split(";").filter(Boolean) });
@@ -587,6 +612,11 @@ function AdminPage({ onRefreshPublic }) {
   };
   const draftAll = async () => {
     await Promise.all(comics.filter((c) => c.status === "published").map((c) => api.updateComicStatus(c.id, "draft")));
+    await load(); onRefreshPublic();
+  };
+  const deleteAll = async () => {
+    if (!window.confirm(`Supprimer les ${comics.length} humoristes ? Cette action est irréversible.`)) return;
+    await Promise.all(comics.map((c) => api.deleteComic(c.id)));
     await load(); onRefreshPublic();
   };
 
@@ -626,6 +656,7 @@ function AdminPage({ onRefreshPublic }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button onClick={publishAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>Tout publier</button>
               <button onClick={draftAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Tout brouillon</button>
+              <button onClick={deleteAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(224,87,74,0.15)", color: C.red, border: "none", cursor: "pointer" }}>Tout supprimer</button>
               <span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>
             </div>
           }>BASE DES HUMORISTES</SectionTitle>
