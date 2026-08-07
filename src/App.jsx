@@ -543,9 +543,24 @@ function AdminPage({ onRefreshPublic }) {
   const [comics, setComics] = useState([]);
   const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "" });
   const [bulkRaw, setBulkRaw] = useState("");
+  const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
 
   const load = useCallback(async () => setComics(await api.fetchAllComicsAdmin()), []);
   useEffect(() => { load(); }, [load]);
+
+  const handlePhotoUpload = async (comicId, file) => {
+    if (!file) return;
+    setUploadingPhotoId(comicId);
+    try {
+      await api.uploadComicPhoto(comicId, file);
+      await load(); onRefreshPublic();
+    } catch (e) {
+      console.error("Erreur upload photo:", e);
+      alert("Impossible d'uploader la photo : " + (e.message || "erreur inconnue"));
+    } finally {
+      setUploadingPhotoId(null);
+    }
+  };
 
   const quickAdd = async (status) => {
     if (!form.nom.trim()) return;
@@ -663,7 +678,18 @@ function AdminPage({ onRefreshPublic }) {
           <div style={{ maxHeight: 560, overflowY: "auto" }}>
             {comics.map((c) => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${C.border}` }}>
-                <PhotoPlaceholder size={36} label={c.nom} imgSrc={c.photo_url} />
+                <label style={{ position: "relative", cursor: "pointer", flexShrink: 0 }} title="Cliquer pour changer la photo">
+                  <PhotoPlaceholder size={36} label={c.nom} imgSrc={c.photo_url} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handlePhotoUpload(c.id, e.target.files?.[0])}
+                    style={{ display: "none" }}
+                  />
+                  {uploadingPhotoId === c.id && (
+                    <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: C.gold }}>...</div>
+                  )}
+                </label>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{c.nom}</div>
                   <div style={{ fontSize: 11, color: C.dim2 }}>{c.pays || "—"}</div>
