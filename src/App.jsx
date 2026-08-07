@@ -169,9 +169,9 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
     <header style={{ background: "rgba(21,19,24,0.9)", backdropFilter: "blur(14px)", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ maxWidth: 1220, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
         <div onClick={() => setNav({ page: "home" })} style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-  <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ height: 168, width: "auto" }} />
-  <div style={{ fontSize: 10.5, color: C.text, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
-</div>
+          <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ height: 168, width: "auto" }} />
+          <div style={{ fontSize: 10.5, color: C.text, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
+        </div>
         <nav style={{ display: "flex", gap: 2 }}>
           {items.map((it) => (
             <button key={it.key} onClick={() => setNav({ page: it.key })} style={{
@@ -325,24 +325,42 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
   const [reviewDraft, setReviewDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
-const load = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const c = await api.fetchComicById(comicId);
-      const r = await api.fetchRatingsForComic(comicId);
-      const rv = await api.fetchReviewsForComic(comicId);
-      setComic(c); setRatings(r); setReviews(rv);
+      setComic(c);
+      setLoading(false); // la fiche peut s'afficher dès qu'on a l'humoriste
+
+      const [r, rv] = await Promise.allSettled([
+        api.fetchRatingsForComic(comicId),
+        api.fetchReviewsForComic(comicId),
+      ]);
+      setRatings(r.status === "fulfilled" ? r.value : []);
+      setReviews(rv.status === "fulfilled" ? rv.value : []);
+      if (r.status === "rejected") console.error("Erreur notes:", r.reason);
+      if (rv.status === "rejected") console.error("Erreur avis:", rv.reason);
+
       if (user) {
-        const mr = await api.fetchMyRating(comicId, user.id);
-        const mrv = await api.fetchMyReview(comicId, user.id);
-        setMyRating(mr); setMyReview(mrv);
-        if (mr) setDraft(Object.fromEntries(CRITERIA.map((c) => [c.key, mr[c.key]])));
-        if (mrv) setReviewDraft(mrv.content);
+        const [mr, mrv] = await Promise.allSettled([
+          api.fetchMyRating(comicId, user.id),
+          api.fetchMyReview(comicId, user.id),
+        ]);
+        if (mr.status === "fulfilled" && mr.value) {
+          setMyRating(mr.value);
+          setDraft(Object.fromEntries(CRITERIA.map((c) => [c.key, mr.value[c.key]])));
+        }
+        if (mrv.status === "fulfilled" && mrv.value) {
+          setMyReview(mrv.value);
+          setReviewDraft(mrv.value.content);
+        }
       }
     } catch (e) {
       console.error("Erreur chargement fiche:", e);
-    } finally {
+      setLoadError("Impossible de charger cette fiche.");
       setLoading(false);
     }
   }, [comicId, user]);
@@ -368,6 +386,9 @@ const load = useCallback(async () => {
     finally { setSaving(false); }
   };
 
+  if (loadError) {
+    return <div style={{ padding: 60, textAlign: "center", color: C.red }}>{loadError}</div>;
+  }
   if (loading || !comic) {
     return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement...</div>;
   }
@@ -538,13 +559,13 @@ function AdminPage({ onRefreshPublic }) {
   const toggleStatus = async (c) => { await api.updateComicStatus(c.id, c.status === "draft" ? "published" : "draft"); await load(); onRefreshPublic(); };
   const remove = async (id) => { await api.deleteComic(id); await load(); onRefreshPublic(); };
   const publishAll = async () => {
-  await Promise.all(comics.filter((c) => c.status === "draft").map((c) => api.updateComicStatus(c.id, "published")));
-  await load(); onRefreshPublic();
-};
-const draftAll = async () => {
-  await Promise.all(comics.filter((c) => c.status === "published").map((c) => api.updateComicStatus(c.id, "draft")));
-  await load(); onRefreshPublic();
-};
+    await Promise.all(comics.filter((c) => c.status === "draft").map((c) => api.updateComicStatus(c.id, "published")));
+    await load(); onRefreshPublic();
+  };
+  const draftAll = async () => {
+    await Promise.all(comics.filter((c) => c.status === "published").map((c) => api.updateComicStatus(c.id, "draft")));
+    await load(); onRefreshPublic();
+  };
 
   return (
     <div style={{ maxWidth: 1220, margin: "0 auto", padding: "32px 24px 60px" }}>
@@ -578,7 +599,13 @@ const draftAll = async () => {
         </div>
 
         <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
-          <SectionTitle right={   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>     <button onClick={publishAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>Tout publier</button>     <button onClick={draftAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Tout brouillon</button>     <span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>   </div> }>BASE DES HUMORISTES</SectionTitle>
+          <SectionTitle right={
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={publishAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>Tout publier</button>
+              <button onClick={draftAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Tout brouillon</button>
+              <span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>
+            </div>
+          }>BASE DES HUMORISTES</SectionTitle>
           <div style={{ maxHeight: 560, overflowY: "auto" }}>
             {comics.map((c) => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${C.border}` }}>
