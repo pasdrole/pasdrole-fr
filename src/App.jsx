@@ -454,12 +454,12 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
             <SectionTitle>{myRating ? "MODIFIER MA NOTE" : "NOTER CET HUMORISTE"}</SectionTitle>
             {CRITERIA.map((c) => (
-              <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13, gap: 8 }}>
-                <span style={{ fontSize: 13, color: C.text, flexShrink: 0 }}>{c.label}</span>
-                <div style={{ display: "flex", gap: 1 }}>
+              <div key={c.key} style={{ marginBottom: 15 }}>
+                <span style={{ fontSize: 13, color: C.text, display: "block", marginBottom: 6 }}>{c.label}</span>
+                <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                    <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 1 }}>
-                      <Mic size={13} fill={(draft[c.key] || 0) >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.5} />
+                    <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                      <Mic size={20} fill={(draft[c.key] || 0) >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.5} />
                     </button>
                   ))}
                 </div>
