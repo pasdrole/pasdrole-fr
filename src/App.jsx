@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Mic, Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield,
+  Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield,
   TrendingUp, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2,
 } from "lucide-react";
@@ -27,12 +27,21 @@ function gradientFor(name) {
 function initials(name) { return (name || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase(); }
 
 /* ---------- Atoms ---------- */
+function MicIcon({ size = 14, filled }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" fill={filled ? C.gold : "none"} stroke={C.gold} strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke={C.gold} strokeWidth="1.6" strokeLinecap="round" fill="none" />
+      <line x1="12" x2="12" y1="19" y2="22" stroke={C.gold} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
 function Micros({ value, size = 14, max = 10 }) {
   const filled = Math.round(value);
   return (
     <div style={{ display: "flex", gap: 1 }}>
       {Array.from({ length: max }).map((_, i) => (
-        <Mic key={i} size={size} fill={i < filled ? C.gold : "none"} stroke={C.gold} strokeWidth={1.4} />
+        <MicIcon key={i} size={size} filled={i < filled} />
       ))}
     </div>
   );
@@ -473,7 +482,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
                 <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                     <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-                      <Mic size={26} fill={(draft[c.key] || 0) >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.5} />
+                      <MicIcon size={26} filled={(draft[c.key] || 0) >= n} />
                     </button>
                   ))}
                 </div>
