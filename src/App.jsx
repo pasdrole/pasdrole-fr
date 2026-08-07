@@ -326,20 +326,25 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
+const load = useCallback(async () => {
     setLoading(true);
-    const c = await api.fetchComicById(comicId);
-    const r = await api.fetchRatingsForComic(comicId);
-    const rv = await api.fetchReviewsForComic(comicId);
-    setComic(c); setRatings(r); setReviews(rv);
-    if (user) {
-      const mr = await api.fetchMyRating(comicId, user.id);
-      const mrv = await api.fetchMyReview(comicId, user.id);
-      setMyRating(mr); setMyReview(mrv);
-      if (mr) setDraft(Object.fromEntries(CRITERIA.map((c) => [c.key, mr[c.key]])));
-      if (mrv) setReviewDraft(mrv.content);
+    try {
+      const c = await api.fetchComicById(comicId);
+      const r = await api.fetchRatingsForComic(comicId);
+      const rv = await api.fetchReviewsForComic(comicId);
+      setComic(c); setRatings(r); setReviews(rv);
+      if (user) {
+        const mr = await api.fetchMyRating(comicId, user.id);
+        const mrv = await api.fetchMyReview(comicId, user.id);
+        setMyRating(mr); setMyReview(mrv);
+        if (mr) setDraft(Object.fromEntries(CRITERIA.map((c) => [c.key, mr[c.key]])));
+        if (mrv) setReviewDraft(mrv.content);
+      }
+    } catch (e) {
+      console.error("Erreur chargement fiche:", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [comicId, user]);
 
   useEffect(() => { load(); }, [load]);
