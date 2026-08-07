@@ -532,6 +532,14 @@ function AdminPage({ onRefreshPublic }) {
 
   const toggleStatus = async (c) => { await api.updateComicStatus(c.id, c.status === "draft" ? "published" : "draft"); await load(); onRefreshPublic(); };
   const remove = async (id) => { await api.deleteComic(id); await load(); onRefreshPublic(); };
+  const publishAll = async () => {
+  await Promise.all(comics.filter((c) => c.status === "draft").map((c) => api.updateComicStatus(c.id, "published")));
+  await load(); onRefreshPublic();
+};
+const draftAll = async () => {
+  await Promise.all(comics.filter((c) => c.status === "published").map((c) => api.updateComicStatus(c.id, "draft")));
+  await load(); onRefreshPublic();
+};
 
   return (
     <div style={{ maxWidth: 1220, margin: "0 auto", padding: "32px 24px 60px" }}>
@@ -565,7 +573,7 @@ function AdminPage({ onRefreshPublic }) {
         </div>
 
         <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
-          <SectionTitle right={<span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>}>BASE DES HUMORISTES</SectionTitle>
+          <SectionTitle right={   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>     <button onClick={publishAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>Tout publier</button>     <button onClick={draftAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Tout brouillon</button>     <span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>   </div> }>BASE DES HUMORISTES</SectionTitle>
           <div style={{ maxHeight: 560, overflowY: "auto" }}>
             {comics.map((c) => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${C.border}` }}>
