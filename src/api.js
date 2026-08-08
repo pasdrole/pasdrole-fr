@@ -101,6 +101,7 @@ export async function fetchReviewsForComic(comicId) {
     .from("reviews")
     .select("*")
     .eq("comic_id", comicId)
+    .eq("status", "approved")
     .order("created_at", { ascending: false });
   if (error) throw error;
   if (!reviews || !reviews.length) return [];
@@ -122,11 +123,38 @@ export async function fetchMyReview(comicId, userId) {
   return data;
 }
 
+// Chaque publication/modification repasse en attente de validation.
 export async function upsertReview(comicId, userId, content) {
   const { error } = await supabase.from("reviews").upsert(
-    { comic_id: comicId, user_id: userId, content, updated_at: new Date().toISOString() },
+    { comic_id: comicId, user_id: userId, content, status: "pending", updated_at: new Date().toISOString() },
     { onConflict: "comic_id,user_id" }
   );
+  if (error) throw error;
+}
+
+// ---------- Modération des avis (admin) ----------
+export async function fetchPendingReviews() {
+  const { data: reviews, error } = await supabase
+    .from("reviews")
+    .select("*, comics(nom)")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  if (!reviews || !reviews.length) return [];
+
+  const userIds = [...new Set(reviews.map((r) => r.user_id))];
+  const { data: profiles, error: e2 } = await supabase
+    .from("profiles")
+    .select("id, pseudo")
+    .in("id", userIds);
+  if (e2) throw e2;
+
+  const pseudoById = Object.fromEntries((profiles || []).map((p) => [p.id, p.pseudo]));
+  return reviews.map((r) => ({ ...r, profiles: { pseudo: pseudoById[r.user_id] || "Anonyme" } }));
+}
+
+export async function updateReviewStatus(reviewId, status) {
+  const { error } = await supabase.from("reviews").update({ status }).eq("id", reviewId);
   if (error) throw error;
 }
 
