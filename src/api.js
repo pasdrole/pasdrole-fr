@@ -126,7 +126,7 @@ export async function fetchMyReview(comicId, userId) {
 // Le webhook natif Supabase (schéma supabase_functions) n'est pas disponible sur ce
 // projet, donc on appelle directement la fonction d'email depuis le client, en best-effort
 // (un échec de notification ne doit jamais empêcher l'action principale de fonctionner).
-const RESEND_EMAIL_URL = "https://gltyvhjhormviwkpjrkw.functions.supabase.co/resend-email";
+const RESEND_EMAIL_URL = "https://gltyvhjhormviwkpjrkw.supabase.co/functions/v1/resend-email";
 const SUPABASE_ANON_KEY = "sb_publishable_E2jgrQt2fn1-a0dETLwuVA_knh429uQ";
 
 async function sendAdminEmail(subject, text) {
