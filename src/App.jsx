@@ -1186,7 +1186,6 @@ export default function App() {
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={(id) => setNav({ page: "detail", id })} limit={10} />
           <LatestReviews onOpen={(id) => setNav({ page: "detail", id })} />
-          <ComicGrid comicsWithStats={filtered} onOpen={(id) => setNav({ page: "detail", id })} title={query ? "RÉSULTATS" : "TOUS LES HUMORISTES"} />
         </>
       )}
       {nav.page === "ranking" && <TopStrip comicsWithStats={comicsWithStats} onOpen={(id) => setNav({ page: "detail", id })} limit={comicsWithStats.length} title="CLASSEMENT COMPLET" />}
