@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star,
+  Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2,
 } from "lucide-react";
@@ -198,6 +198,7 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
     { key: "home", label: "Accueil", icon: Home },
     { key: "ranking", label: "Classements", icon: LayoutGrid },
     { key: "comics", label: "Humoristes", icon: Users },
+    { key: "contact", label: "Contact", icon: Mail },
   ];
   const [showDropdown, setShowDropdown] = useState(false);
   const suggestions = query.trim()
@@ -534,7 +535,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
     if (!reviewDraft.trim()) return;
     setSaving(true);
     try {
-      await api.upsertReview(comicId, user.id, reviewDraft.trim());
+      await api.upsertReview(comicId, user.id, reviewDraft.trim(), comic?.nom);
       await load();
     } catch (e) {
       console.error("Erreur enregistrement avis:", e);
@@ -686,6 +687,66 @@ function MyActivityPage({ user, profile, onOpenComic }) {
 
 /* ---------- Admin ---------- */
 /* ---------- Recherche vidéos YouTube (admin) ---------- */
+/* ---------- Contact ---------- */
+function ContactPage() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async () => {
+    setErr("");
+    setSending(true);
+    try {
+      await api.submitContactMessage(name.trim(), email.trim(), message.trim());
+      setSent(true);
+      setName(""); setEmail(""); setMessage("");
+    } catch (e) {
+      setErr(e.message || "Une erreur est survenue.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const canSubmit = name.trim() && email.trim() && message.trim() && !sending;
+
+  return (
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "40px 24px 60px" }}>
+      <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, letterSpacing: 1, marginBottom: 6 }}>CONTACT</h1>
+      <p style={{ color: C.dim, fontSize: 14, marginBottom: 26 }}>Une question, une suggestion, un souci sur une fiche ? Écris-nous.</p>
+
+      {sent ? (
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 26, textAlign: "center" }}>
+          <div style={{ color: C.green, fontSize: 15, marginBottom: 6 }}>Message envoyé !</div>
+          <div style={{ color: C.dim, fontSize: 13 }}>On te répond dès que possible.</div>
+        </div>
+      ) : (
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 26 }}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 5 }}>Nom</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ton nom"
+              style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 5 }}>Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="toi@exemple.com"
+              style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 5 }}>Message</label>
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} placeholder="Ton message..."
+              style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical" }} />
+          </div>
+          {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 14 }}>{err}</div>}
+          <GoldButton full disabled={!canSubmit} onClick={submit}>{sending ? "Envoi..." : "Envoyer"}</GoldButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VideoSearchModal({ comic, onClose }) {
   const [query, setQuery] = useState(`${comic.nom} humour spectacle`);
   const [results, setResults] = useState([]);
@@ -1096,6 +1157,7 @@ export default function App() {
         <ComicDetail comicId={nav.id} user={user} onBack={() => setNav({ page: "home" })} onRequireAuth={() => setShowAuth(true)} />
       )}
       {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={(id) => setNav({ page: "detail", id })} />}
+      {nav.page === "contact" && <ContactPage />}
       {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={(id) => setNav({ page: "detail", id })} />}
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthed={refreshAuth} />}
