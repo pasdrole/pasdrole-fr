@@ -165,6 +165,25 @@ export async function submitContactMessage(name, email, message) {
 }
 
 // ---------- Modération des avis (admin) ----------
+// Derniers avis validés, tous humoristes confondus (widget accueil).
+export async function fetchLatestReviews(limit = 6) {
+  const { data: reviews, error } = await supabase
+    .from("reviews")
+    .select("*, comics(id, nom, photo_url)")
+    .eq("status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  if (!reviews || !reviews.length) return [];
+
+  const userIds = [...new Set(reviews.map((r) => r.user_id))];
+  const { data: profiles, error: e2 } = await supabase.from("profiles").select("id, pseudo").in("id", userIds);
+  if (e2) throw e2;
+
+  const pseudoById = Object.fromEntries((profiles || []).map((p) => [p.id, p.pseudo]));
+  return reviews.map((r) => ({ ...r, profiles: { pseudo: pseudoById[r.user_id] || "Anonyme" } }));
+}
+
 export async function fetchPendingReviews() {
   const { data: reviews, error } = await supabase
     .from("reviews")
