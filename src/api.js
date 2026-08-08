@@ -133,7 +133,7 @@ async function sendAdminEmail(subject, text) {
   try {
     await fetch(RESEND_EMAIL_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, "apikey": SUPABASE_ANON_KEY },
       body: JSON.stringify({ subject, text }),
     });
   } catch (e) {
