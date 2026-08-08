@@ -135,6 +135,62 @@ export async function deleteReview(comicId, userId) {
   if (error) throw error;
 }
 
+// ---------- Vidéos YouTube ----------
+export async function searchYouTubeVideos(query) {
+  const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY;
+  if (!apiKey) throw new Error("Clé API YouTube manquante (VITE_YOUTUBE_API_KEY).");
+  const params = new URLSearchParams({
+    part: "snippet", q: query, type: "video", maxResults: "5", key: apiKey,
+  });
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return (data.items || []).map((item) => ({
+    youtube_video_id: item.id.videoId,
+    title: item.snippet.title,
+    thumbnail_url: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || "",
+  }));
+}
+
+export async function saveComicVideos(comicId, videos) {
+  const payload = videos.map((v) => ({
+    comic_id: comicId, youtube_video_id: v.youtube_video_id, title: v.title, thumbnail_url: v.thumbnail_url,
+  }));
+  const { error } = await supabase.from("comic_videos").insert(payload);
+  if (error) throw error;
+}
+
+export async function fetchVideosForComic(comicId) {
+  const { data, error } = await supabase.from("comic_videos").select("*").eq("comic_id", comicId).order("created_at");
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteComicVideo(videoId) {
+  const { error } = await supabase.from("comic_videos").delete().eq("id", videoId);
+  if (error) throw error;
+}
+
+export async function fetchVideoRatings(videoId) {
+  const { data, error } = await supabase.from("video_ratings").select("rating").eq("video_id", videoId);
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchMyVideoRating(videoId, userId) {
+  const { data, error } = await supabase.from("video_ratings").select("*").eq("video_id", videoId).eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertVideoRating(videoId, userId, rating) {
+  const { error } = await supabase.from("video_ratings").upsert(
+    { video_id: videoId, user_id: userId, rating, updated_at: new Date().toISOString() },
+    { onConflict: "video_id,user_id" }
+  );
+  if (error) throw error;
+}
+
 // ---------- "Mes avis" — tout ce qu'un compte a noté/commenté ----------
 export async function fetchMyActivity(userId) {
   const [{ data: ratings, error: e1 }, { data: reviews, error: e2 }] = await Promise.all([
