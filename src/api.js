@@ -125,30 +125,43 @@ export async function fetchMyReview(comicId, userId) {
 
 // Le webhook natif Supabase (schéma supabase_functions) n'est pas disponible sur ce
 // projet, donc on appelle directement la fonction d'email depuis le client, en best-effort
-// (un échec de notification ne doit jamais empêcher l'avis d'être enregistré).
-const NOTIFY_REVIEW_URL = "https://gltyvhjhormviwkpjrkw.functions.supabase.co/notify-review";
+// (un échec de notification ne doit jamais empêcher l'action principale de fonctionner).
+const RESEND_EMAIL_URL = "https://gltyvhjhormviwkpjrkw.functions.supabase.co/resend-email";
 const SUPABASE_ANON_KEY = "sb_publishable_E2jgrQt2fn1-a0dETLwuVA_knh429uQ";
 
-async function notifyReviewSubmitted(comicId, content) {
+async function sendAdminEmail(subject, text) {
   try {
-    await fetch(NOTIFY_REVIEW_URL, {
+    await fetch(RESEND_EMAIL_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ record: { comic_id: comicId, content } }),
+      body: JSON.stringify({ subject, text }),
     });
   } catch (e) {
-    console.error("Erreur notification email avis:", e);
+    console.error("Erreur envoi email admin:", e);
   }
 }
 
 // Chaque publication/modification repasse en attente de validation.
-export async function upsertReview(comicId, userId, content) {
+export async function upsertReview(comicId, userId, content, comicNom) {
   const { error } = await supabase.from("reviews").upsert(
     { comic_id: comicId, user_id: userId, content, status: "pending", updated_at: new Date().toISOString() },
     { onConflict: "comic_id,user_id" }
   );
   if (error) throw error;
-  notifyReviewSubmitted(comicId, content);
+  sendAdminEmail(
+    `Nouvel avis à valider — ${comicNom || "un humoriste"}`,
+    `Un nouvel avis attend validation sur ${comicNom || "un humoriste"}.\n\n"${content}"\n\nVa dans l'admin > Avis sur pasdrole.fr pour le valider ou le refuser.`
+  );
+}
+
+// ---------- Contact ----------
+export async function submitContactMessage(name, email, message) {
+  const { error } = await supabase.from("contact_messages").insert({ name, email, message });
+  if (error) throw error;
+  sendAdminEmail(
+    `Nouveau message de contact — ${name}`,
+    `De : ${name} (${email})\n\n${message}`
+  );
 }
 
 // ---------- Modération des avis (admin) ----------
