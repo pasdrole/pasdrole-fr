@@ -123,6 +123,24 @@ export async function fetchMyReview(comicId, userId) {
   return data;
 }
 
+// Le webhook natif Supabase (schéma supabase_functions) n'est pas disponible sur ce
+// projet, donc on appelle directement la fonction d'email depuis le client, en best-effort
+// (un échec de notification ne doit jamais empêcher l'avis d'être enregistré).
+const NOTIFY_REVIEW_URL = "https://gltyvhjhormviwkpjrkw.functions.supabase.co/notify-review";
+const SUPABASE_ANON_KEY = "sb_publishable_E2jgrQt2fn1-a0dETLwuVA_knh429uQ";
+
+async function notifyReviewSubmitted(comicId, content) {
+  try {
+    await fetch(NOTIFY_REVIEW_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ record: { comic_id: comicId, content } }),
+    });
+  } catch (e) {
+    console.error("Erreur notification email avis:", e);
+  }
+}
+
 // Chaque publication/modification repasse en attente de validation.
 export async function upsertReview(comicId, userId, content) {
   const { error } = await supabase.from("reviews").upsert(
@@ -130,6 +148,7 @@ export async function upsertReview(comicId, userId, content) {
     { onConflict: "comic_id,user_id" }
   );
   if (error) throw error;
+  notifyReviewSubmitted(comicId, content);
 }
 
 // ---------- Modération des avis (admin) ----------
