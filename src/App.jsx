@@ -744,7 +744,7 @@ function VideoSearchModal({ comic, onClose }) {
   );
 }
 
-function AdminPage({ onRefreshPublic }) {
+function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [comics, setComics] = useState([]);
   const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
   const [bulkRaw, setBulkRaw] = useState("");
@@ -927,7 +927,7 @@ function AdminPage({ onRefreshPublic }) {
                     <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: C.gold }}>...</div>
                   )}
                 </label>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div onClick={() => onOpenComic(c.id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }} title="Voir la fiche publique">
                   <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{c.nom}</div>
                   <div style={{ fontSize: 11, color: C.dim2 }}>{c.pays || "—"}</div>
                 </div>
@@ -1012,7 +1012,7 @@ export default function App() {
         <ComicDetail comicId={nav.id} user={user} onBack={() => setNav({ page: "home" })} onRequireAuth={() => setShowAuth(true)} />
       )}
       {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={(id) => setNav({ page: "detail", id })} />}
-      {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} />}
+      {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={(id) => setNav({ page: "detail", id })} />}
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthed={refreshAuth} />}
 
