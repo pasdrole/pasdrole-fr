@@ -193,12 +193,23 @@ function AuthModal({ onClose, onAuthed }) {
 }
 
 /* ---------- Header ---------- */
-function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLogout }) {
+function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLogout, comicsWithStats, onOpenComic }) {
   const items = [
     { key: "home", label: "Accueil", icon: Home },
     { key: "ranking", label: "Classements", icon: LayoutGrid },
     { key: "comics", label: "Humoristes", icon: Users },
   ];
+  const [showDropdown, setShowDropdown] = useState(false);
+  const suggestions = query.trim()
+    ? (comicsWithStats || []).filter((c) => c.nom.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8)
+    : [];
+
+  const pickSuggestion = (id) => {
+    onOpenComic(id);
+    setQuery("");
+    setShowDropdown(false);
+  };
+
   return (
     <header style={{ background: "rgba(21,19,24,0.9)", backdropFilter: "blur(14px)", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ maxWidth: 1220, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
@@ -226,10 +237,36 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
         </nav>
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "8px 13px", minWidth: 180 }}>
-            <Search size={14} color={C.dim2} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher..."
-              style={{ background: "none", border: "none", outline: "none", color: C.text, fontSize: 13, width: "100%" }} />
+          <div style={{ position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "8px 13px", minWidth: 180 }}>
+              <Search size={14} color={C.dim2} />
+              <input
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setShowDropdown(true); }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                placeholder="Rechercher..."
+                style={{ background: "none", border: "none", outline: "none", color: C.text, fontSize: 13, width: "100%" }}
+              />
+            </div>
+            {showDropdown && query.trim() && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", zIndex: 60, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.5)" }}>
+                {suggestions.length === 0 ? (
+                  <div style={{ padding: "12px 14px", fontSize: 12.5, color: C.dim2 }}>Aucun résultat</div>
+                ) : (
+                  suggestions.map((c) => (
+                    <button
+                      key={c.id}
+                      onMouseDown={() => pickSuggestion(c.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", borderBottom: `1px solid ${C.border}` }}
+                    >
+                      <PhotoPlaceholder size={28} label={c.nom} imgSrc={c.photo_url} />
+                      <span style={{ fontSize: 13, color: C.text }}>{c.nom}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
           {user ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -997,7 +1034,7 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Inter, sans-serif" }}>
       <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }`}</style>
 
-      <Header nav={nav} setNav={setNav} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} />
+      <Header nav={nav} setNav={setNav} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} comicsWithStats={comicsWithStats} onOpenComic={(id) => setNav({ page: "detail", id })} />
 
       {nav.page === "home" && (
         <>
