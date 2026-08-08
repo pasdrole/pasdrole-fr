@@ -968,7 +968,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
         const cells = parseCSVLine(lines[i]);
         const row = {};
         header.forEach((h, idx) => (row[h] = (cells[idx] || "").trim()));
-        rows.push({ nom: row.nom, pays: row.pays, debut: row.debut, genres: row.genres, bio: row.bio, spectacles: (row.spectacles || "").split(";").filter(Boolean) });
+        rows.push({ nom: row.nom, pays: row.pays, debut: row.debut, genres: row.genres, bio: row.bio, date_naissance: row.date_naissance || null, spectacles: (row.spectacles || "").split(";").filter(Boolean) });
       }
     }
     const existing = new Set(comics.map((c) => c.nom.toLowerCase()));
