@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield,
+  Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star,
   TrendingUp, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2,
 } from "lucide-react";
@@ -70,6 +70,23 @@ function Avatar({ name, size = 44, glow = false }) {
       <div style={{ position: "relative", width: size, height: size, borderRadius: "50%", background: `linear-gradient(145deg, ${c1}, ${c2})`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: size * 0.34, color: "#fff", boxShadow: "0 6px 16px -4px rgba(0,0,0,0.5)" }}>
         {initials(name)}
       </div>
+    </div>
+  );
+}
+function VideoStars({ value, size = 14, interactive = false, onRate }) {
+  return (
+    <div style={{ display: "flex", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          disabled={!interactive}
+          onClick={() => onRate && onRate(n)}
+          style={{ background: "none", border: "none", padding: 1, cursor: interactive ? "pointer" : "default" }}
+        >
+          <Star size={size} fill={value >= n ? C.gold : "none"} stroke={C.gold} strokeWidth={1.4} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -342,6 +359,65 @@ function ComicGrid({ comicsWithStats, onOpen, title }) {
 }
 
 /* ---------- Detail page with rating + review, edit own ---------- */
+/* ---------- Bloc vidéo (embed + notation dédiée) ---------- */
+function VideoBlock({ video, user, onRequireAuth }) {
+  const [allRatings, setAllRatings] = useState([]);
+  const [myRating, setMyRating] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const all = await api.fetchVideoRatings(video.id);
+      setAllRatings(all);
+      if (user) {
+        const mine = await api.fetchMyVideoRating(video.id, user.id);
+        setMyRating(mine?.rating || 0);
+      }
+    } catch (e) {
+      console.error("Erreur notes vidéo:", e);
+    }
+  }, [video.id, user]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const avg = allRatings.length ? allRatings.reduce((a, b) => a + b.rating, 0) / allRatings.length : 0;
+
+  const rate = async (n) => {
+    if (!user) return onRequireAuth();
+    setSaving(true);
+    try {
+      await api.upsertVideoRating(video.id, user.id, n);
+      setMyRating(n);
+      await load();
+    } catch (e) {
+      console.error("Erreur enregistrement note vidéo:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
+        <iframe
+          src={`https://www.youtube.com/embed/${video.youtube_video_id}`}
+          title={video.title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+        />
+      </div>
+      <div style={{ fontSize: 12.5, color: C.text, marginBottom: 6 }}>{video.title}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <VideoStars value={myRating} size={16} interactive={!saving} onRate={rate} />
+        <span style={{ fontSize: 11, color: C.dim2 }}>
+          {avg > 0 ? `${avg.toFixed(1)}/5 (${allRatings.length} vote${allRatings.length !== 1 ? "s" : ""})` : "Pas encore noté"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
   const [comic, setComic] = useState(null);
   const [ratings, setRatings] = useState([]);
@@ -353,6 +429,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [videos, setVideos] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -362,14 +439,17 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
       setComic(c);
       setLoading(false); // la fiche peut s'afficher dès qu'on a l'humoriste
 
-      const [r, rv] = await Promise.allSettled([
+      const [r, rv, vids] = await Promise.allSettled([
         api.fetchRatingsForComic(comicId),
         api.fetchReviewsForComic(comicId),
+        api.fetchVideosForComic(comicId),
       ]);
       setRatings(r.status === "fulfilled" ? r.value : []);
       setReviews(rv.status === "fulfilled" ? rv.value : []);
+      setVideos(vids.status === "fulfilled" ? vids.value : []);
       if (r.status === "rejected") console.error("Erreur notes:", r.reason);
       if (rv.status === "rejected") console.error("Erreur avis:", rv.reason);
+      if (vids.status === "rejected") console.error("Erreur vidéos:", vids.reason);
 
       if (user) {
         const [mr, mrv] = await Promise.allSettled([
@@ -477,6 +557,15 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
               </div>
             )}
 
+            {videos.length > 0 && (
+              <div style={{ marginTop: 26 }}>
+                <SectionTitle>VIDÉOS ({videos.length})</SectionTitle>
+                {videos.map((v) => (
+                  <VideoBlock key={v.id} video={v} user={user} onRequireAuth={onRequireAuth} />
+                ))}
+              </div>
+            )}
+
             {/* Avis */}
             <div style={{ marginTop: 26 }}>
               <SectionTitle>AVIS ({reviews.length})</SectionTitle>
@@ -557,11 +646,110 @@ function MyActivityPage({ user, profile, onOpenComic }) {
 }
 
 /* ---------- Admin ---------- */
+/* ---------- Recherche vidéos YouTube (admin) ---------- */
+function VideoSearchModal({ comic, onClose }) {
+  const [query, setQuery] = useState(`${comic.nom} humour spectacle`);
+  const [results, setResults] = useState([]);
+  const [existing, setExisting] = useState([]);
+  const [selected, setSelected] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const loadExisting = useCallback(async () => {
+    try { setExisting(await api.fetchVideosForComic(comic.id)); } catch (e) { console.error(e); }
+  }, [comic.id]);
+  useEffect(() => { loadExisting(); }, [loadExisting]);
+
+  const search = async () => {
+    setLoading(true); setErr(""); setResults([]);
+    try {
+      const r = await api.searchYouTubeVideos(query);
+      setResults(r);
+    } catch (e) {
+      setErr(e.message || "Erreur de recherche");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = (videoId) => setSelected((s) => ({ ...s, [videoId]: !s[videoId] }));
+
+  const saveSelected = async () => {
+    const toSave = results.filter((r) => selected[r.youtube_video_id]);
+    if (!toSave.length) return;
+    setLoading(true);
+    try {
+      await api.saveComicVideos(comic.id, toSave);
+      setSelected({});
+      setResults([]);
+      await loadExisting();
+    } catch (e) {
+      setErr(e.message || "Erreur d'enregistrement");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeExisting = async (videoId) => {
+    await api.deleteComicVideo(videoId);
+    await loadExisting();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, maxWidth: 560, width: "100%", maxHeight: "85vh", overflowY: "auto", padding: 26 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: C.text, margin: 0 }}>VIDÉOS — {comic.nom}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={20} color={C.dim} /></button>
+        </div>
+
+        {existing.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, color: C.dim2, marginBottom: 8 }}>Déjà enregistrées ({existing.length})</div>
+            {existing.map((v) => (
+              <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0" }}>
+                {v.thumbnail_url && <img src={v.thumbnail_url} alt="" style={{ width: 50, height: 32, objectFit: "cover", borderRadius: 4 }} />}
+                <div style={{ flex: 1, fontSize: 12, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.title}</div>
+                <button onClick={() => removeExisting(v.id)} style={{ background: "none", border: "none", cursor: "pointer" }}><Trash2 size={14} color={C.dim2} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+            style={{ flex: 1, boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+          <GoldButton onClick={search} disabled={loading}>{loading ? "..." : "Chercher"}</GoldButton>
+        </div>
+
+        {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
+
+        {results.length > 0 && (
+          <>
+            <div style={{ fontSize: 11, color: C.dim2, marginBottom: 8 }}>Résultats — coche celles à ajouter</div>
+            {results.map((r) => (
+              <label key={r.youtube_video_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", cursor: "pointer" }}>
+                <input type="checkbox" checked={!!selected[r.youtube_video_id]} onChange={() => toggle(r.youtube_video_id)} />
+                {r.thumbnail_url && <img src={r.thumbnail_url} alt="" style={{ width: 50, height: 32, objectFit: "cover", borderRadius: 4 }} />}
+                <div style={{ flex: 1, fontSize: 12, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</div>
+              </label>
+            ))}
+            <div style={{ marginTop: 14 }}>
+              <GoldButton full onClick={saveSelected} disabled={loading}>Enregistrer la sélection</GoldButton>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdminPage({ onRefreshPublic }) {
   const [comics, setComics] = useState([]);
   const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
   const [bulkRaw, setBulkRaw] = useState("");
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
+  const [videoSearchComic, setVideoSearchComic] = useState(null);
 
   const load = useCallback(async () => setComics(await api.fetchAllComicsAdmin()), []);
   useEffect(() => { load(); }, [load]);
@@ -746,12 +934,16 @@ function AdminPage({ onRefreshPublic }) {
                 <button onClick={() => toggleStatus(c)} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, padding: "5px 10px", borderRadius: 20, background: c.status === "draft" ? "rgba(154,147,166,0.15)" : "rgba(63,184,120,0.15)", color: c.status === "draft" ? C.dim : C.green, border: "none", cursor: "pointer" }}>
                   {c.status === "draft" ? <EyeOff size={11} /> : <Eye size={11} />} {c.status === "draft" ? "Brouillon" : "Publié"}
                 </button>
+                <button onClick={() => setVideoSearchComic(c)} style={{ fontSize: 10.5, padding: "5px 10px", borderRadius: 20, background: "rgba(240,180,41,0.12)", color: C.gold, border: "none", cursor: "pointer" }}>
+                  Vidéos
+                </button>
                 <button onClick={() => remove(c.id)} style={{ background: "none", border: "none", cursor: "pointer" }}><Trash2 size={15} color={C.dim2} /></button>
               </div>
             ))}
           </div>
         </div>
       </div>
+      {videoSearchComic && <VideoSearchModal comic={videoSearchComic} onClose={() => setVideoSearchComic(null)} />}
     </div>
   );
 }
