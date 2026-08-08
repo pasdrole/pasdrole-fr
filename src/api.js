@@ -46,6 +46,23 @@ export async function bulkCreateComics(comics) {
   return data;
 }
 
+// Met à jour uniquement la date de naissance d'humoristes déjà existants (identifiés par
+// leur nom exact), sans toucher au reste de la fiche (photo, bio, etc.).
+export async function bulkUpdateBirthDates(updates) {
+  const { data: allComics, error } = await supabase.from("comics").select("id, nom");
+  if (error) throw error;
+  const idByName = Object.fromEntries(allComics.map((c) => [c.nom.toLowerCase().trim(), c.id]));
+
+  const results = [];
+  for (const u of updates) {
+    const id = idByName[u.nom.toLowerCase().trim()];
+    if (!id) { results.push({ nom: u.nom, status: "not_found" }); continue; }
+    const { error: upErr } = await supabase.from("comics").update({ date_naissance: u.date_naissance }).eq("id", id);
+    results.push({ nom: u.nom, status: upErr ? "error" : "ok" });
+  }
+  return results;
+}
+
 export async function updateComicStatus(id, status) {
   const { error } = await supabase.from("comics").update({ status }).eq("id", id);
   if (error) throw error;
