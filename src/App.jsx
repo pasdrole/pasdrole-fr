@@ -147,8 +147,8 @@ function AuthModal({ onClose, onAuthed }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, maxWidth: 380, width: "100%", padding: 28 }}>
+    <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 16 }}>
+      <div onMouseDown={(e) => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, maxWidth: 380, width: "100%", padding: 28 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.text, margin: 0, letterSpacing: 1 }}>
             {mode === "login" ? "CONNEXION" : "CRÉER UN COMPTE"}
@@ -177,7 +177,7 @@ function AuthModal({ onClose, onAuthed }) {
         {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
         {info && <div style={{ color: C.green, fontSize: 12, marginBottom: 12 }}>{info}</div>}
 
-        <GoldButton full disabled={loading || !email || !password} onClick={submit}>
+        <GoldButton full disabled={loading || !email || !password || (mode === "signup" && !pseudo.trim())} onClick={submit}>
           {loading ? "..." : mode === "login" ? "Se connecter" : "Créer mon compte"}
         </GoldButton>
 
