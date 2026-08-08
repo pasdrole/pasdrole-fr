@@ -641,6 +641,8 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
             <textarea value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} rows={4} placeholder="Ton avis sur cet humoriste..."
               style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical", marginBottom: 12 }} />
             <GoldButton full disabled={!reviewDraft.trim() || saving} onClick={submitReview}>{myReview ? "Mettre à jour mon avis" : "Publier mon avis"}</GoldButton>
+            {myReview?.status === "pending" && <div style={{ fontSize: 11.5, color: C.gold, marginTop: 10, textAlign: "center" }}>En attente de validation par l'équipe</div>}
+            {myReview?.status === "rejected" && <div style={{ fontSize: 11.5, color: C.red, marginTop: 10, textAlign: "center" }}>Cet avis n'a pas été validé</div>}
           </div>
         </div>
       </div>
@@ -787,6 +789,18 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [bulkRaw, setBulkRaw] = useState("");
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
   const [videoSearchComic, setVideoSearchComic] = useState(null);
+  const [adminTab, setAdminTab] = useState("humoristes");
+  const [pendingReviews, setPendingReviews] = useState([]);
+
+  const loadPendingReviews = useCallback(async () => {
+    try { setPendingReviews(await api.fetchPendingReviews()); } catch (e) { console.error(e); }
+  }, []);
+  useEffect(() => { loadPendingReviews(); }, [loadPendingReviews]);
+
+  const moderateReview = async (id, status) => {
+    await api.updateReviewStatus(id, status);
+    await loadPendingReviews();
+  };
 
   const load = useCallback(async () => setComics(await api.fetchAllComicsAdmin()), []);
   useEffect(() => { load(); }, [load]);
@@ -886,6 +900,38 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
         <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: C.text, letterSpacing: 1, margin: 0 }}>PANNEAU ADMIN</h1>
       </div>
 
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <button onClick={() => setAdminTab("humoristes")} style={{
+          fontSize: 12.5, padding: "8px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+          background: adminTab === "humoristes" ? C.gold : C.panel2, color: adminTab === "humoristes" ? "#1A1509" : C.dim,
+          fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
+        }}>HUMORISTES</button>
+        <button onClick={() => setAdminTab("avis")} style={{
+          fontSize: 12.5, padding: "8px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+          background: adminTab === "avis" ? C.gold : C.panel2, color: adminTab === "avis" ? "#1A1509" : C.dim,
+          fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6,
+        }}>AVIS {pendingReviews.length > 0 && <span style={{ background: adminTab === "avis" ? "#1A1509" : C.red, color: adminTab === "avis" ? C.gold : "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10.5 }}>{pendingReviews.length}</span>}</button>
+      </div>
+
+      {adminTab === "avis" ? (
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720 }}>
+          <SectionTitle>AVIS EN ATTENTE ({pendingReviews.length})</SectionTitle>
+          {pendingReviews.length === 0 && <div style={{ color: C.dim2, fontSize: 13 }}>Aucun avis en attente de validation.</div>}
+          {pendingReviews.map((r) => (
+            <div key={r.id} style={{ padding: "14px 0", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                <span style={{ fontSize: 12.5, color: C.gold, fontWeight: 600 }}>{r.profiles?.pseudo || "Anonyme"}</span>
+                <span style={{ fontSize: 11, color: C.dim2 }}>sur {r.comics?.nom || "?"}</span>
+              </div>
+              <p style={{ fontSize: 13, color: C.text, lineHeight: 1.5, marginBottom: 10 }}>{r.content}</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => moderateReview(r.id, "approved")} style={{ fontSize: 11.5, padding: "6px 14px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>Valider</button>
+                <button onClick={() => moderateReview(r.id, "rejected")} style={{ fontSize: 11.5, padding: "6px 14px", borderRadius: 20, background: "rgba(224,87,74,0.15)", color: C.red, border: "none", cursor: "pointer" }}>Refuser</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
@@ -980,6 +1026,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
           </div>
         </div>
       </div>
+      )}
       {videoSearchComic && <VideoSearchModal comic={videoSearchComic} onClose={() => setVideoSearchComic(null)} />}
     </div>
   );
