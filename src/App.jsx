@@ -885,6 +885,8 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [comics, setComics] = useState([]);
   const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
   const [bulkRaw, setBulkRaw] = useState("");
+  const [birthDatesRaw, setBirthDatesRaw] = useState("");
+  const [birthDatesResult, setBirthDatesResult] = useState(null);
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
   const [videoSearchComic, setVideoSearchComic] = useState(null);
   const [adminTab, setAdminTab] = useState("humoristes");
@@ -973,6 +975,23 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
     const toAdd = rows.filter((r) => r.nom && !existing.has(r.nom.toLowerCase())).map((r) => ({ ...r, status: "draft" }));
     if (toAdd.length) await api.bulkCreateComics(toAdd);
     setBulkRaw(""); await load(); onRefreshPublic();
+  };
+
+  const doBirthDatesImport = async () => {
+    const trimmed = birthDatesRaw.trim();
+    if (!trimmed) return;
+    const lines = trimmed.split("\n").filter((l) => l.trim());
+    const header = parseCSVLine(lines[0]).map((h) => h.trim().toLowerCase());
+    const updates = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCSVLine(lines[i]);
+      const row = {};
+      header.forEach((h, idx) => (row[h] = (cells[idx] || "").trim()));
+      if (row.nom && row.date_naissance) updates.push({ nom: row.nom, date_naissance: row.date_naissance });
+    }
+    const results = await api.bulkUpdateBirthDates(updates);
+    setBirthDatesResult(results);
+    await load(); onRefreshPublic();
   };
 
   const toggleStatus = async (c) => { await api.updateComicStatus(c.id, c.status === "draft" ? "published" : "draft"); await load(); onRefreshPublic(); };
@@ -1081,6 +1100,24 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
             <textarea value={bulkRaw} onChange={(e) => setBulkRaw(e.target.value)} rows={8} placeholder="nom,pays,debut,genres,bio,spectacles"
               style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12, fontFamily: "monospace", marginBottom: 14 }} />
             <GoldButton full onClick={doBulkImport}>Importer (en brouillon)</GoldButton>
+          </div>
+
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+            <SectionTitle>METTRE À JOUR LES DATES DE NAISSANCE</SectionTitle>
+            <p style={{ fontSize: 11.5, color: C.dim2, marginBottom: 10 }}>Met à jour uniquement la date de naissance des humoristes déjà existants (identifiés par leur nom exact) — ne touche à rien d'autre.</p>
+            <textarea value={birthDatesRaw} onChange={(e) => setBirthDatesRaw(e.target.value)} rows={6} placeholder="nom,date_naissance"
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12, fontFamily: "monospace", marginBottom: 14 }} />
+            <GoldButton full onClick={doBirthDatesImport}>Mettre à jour</GoldButton>
+            {birthDatesResult && (
+              <div style={{ marginTop: 14, fontSize: 12 }}>
+                <div style={{ color: C.green, marginBottom: 4 }}>{birthDatesResult.filter((r) => r.status === "ok").length} mis à jour</div>
+                {birthDatesResult.filter((r) => r.status === "not_found").length > 0 && (
+                  <div style={{ color: C.red }}>
+                    Non trouvés : {birthDatesResult.filter((r) => r.status === "not_found").map((r) => r.nom).join(", ")}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
