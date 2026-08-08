@@ -373,6 +373,43 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
   );
 }
 
+function LatestReviews({ onOpen }) {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.fetchLatestReviews(6)
+      .then(setReviews)
+      .catch((e) => console.error("Erreur derniers avis:", e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || reviews.length === 0) return null;
+
+  return (
+    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
+      <SectionTitle>DERNIERS AVIS</SectionTitle>
+      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 12 }}>
+        {reviews.map((r) => (
+          <button key={r.id} onClick={() => onOpen(r.comics?.id)} style={{
+            flex: "0 0 260px", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14,
+            padding: 16, cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 10,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <PhotoPlaceholder size={34} label={r.comics?.nom} imgSrc={r.comics?.photo_url} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.comics?.nom}</div>
+                <div style={{ fontSize: 11, color: C.gold }}>{r.profiles?.pseudo || "Anonyme"}</div>
+              </div>
+            </div>
+            <p style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, margin: 0, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.content}</p>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ComicGrid({ comicsWithStats, onOpen, title }) {
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px" }}>
@@ -1148,6 +1185,7 @@ export default function App() {
         <>
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={(id) => setNav({ page: "detail", id })} limit={10} />
+          <LatestReviews onOpen={(id) => setNav({ page: "detail", id })} />
           <ComicGrid comicsWithStats={filtered} onOpen={(id) => setNav({ page: "detail", id })} title={query ? "RÉSULTATS" : "TOUS LES HUMORISTES"} />
         </>
       )}
