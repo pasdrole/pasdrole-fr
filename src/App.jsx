@@ -399,21 +399,28 @@ function Hero({ comicsWithStats }) {
 
 function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT" }) {
   const ranked = useMemo(() => [...comicsWithStats].sort((a, b) => b.avg10 - a.avg10 || b.votes - a.votes).slice(0, limit), [comicsWithStats, limit]);
+  // Le rang (1, 2, 3...) n'a de sens que pour les humoristes déjà notés — on numérote
+  // uniquement ceux-là, les autres n'affichent aucun badge de classement.
+  let voteRank = 0;
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
       <SectionTitle>{title}</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14 }}>
-        {ranked.map((c, i) => {
+        {ranked.map((c) => {
           const trend = c.trend;
           const stable = trend && Math.abs(trend.delta) < 0.05;
+          const hasVotes = c.votes > 0;
+          const rank = hasVotes ? ++voteRank : null;
           return (
           <button key={c.id} onClick={() => onOpen(c.id)} style={{
             background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`,
-            border: `1px solid ${i === 0 ? "rgba(240,180,41,0.5)" : C.border}`, borderRadius: 14, padding: "18px 14px", cursor: "pointer", position: "relative", textAlign: "left",
+            border: `1px solid ${rank === 1 ? "rgba(240,180,41,0.5)" : C.border}`, borderRadius: 14, padding: "18px 14px", cursor: "pointer", position: "relative", textAlign: "left",
           }}>
-            <div style={{ position: "absolute", top: 10, left: 10, width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 800, background: i === 0 ? `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})` : C.panel2, color: i === 0 ? "#1A1509" : C.dim2, border: i === 0 ? "none" : `1px solid ${C.border}` }}>
-              {i === 0 ? <Crown size={12} /> : i + 1}
-            </div>
+            {rank !== null && (
+              <div style={{ position: "absolute", top: 10, left: 10, width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 800, background: rank === 1 ? `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})` : C.panel2, color: rank === 1 ? "#1A1509" : C.dim2, border: rank === 1 ? "none" : `1px solid ${C.border}` }}>
+                {rank === 1 ? <Crown size={12} /> : rank}
+              </div>
+            )}
             {trend && (
               <div title="Évolution sur 7 jours" style={{
                 position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 2,
