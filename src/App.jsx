@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
@@ -23,8 +23,24 @@ const GENRE_OPTIONS = [
   "Autodérision", "Storytelling", "Chronique", "Cynisme", "Provocation",
   "Observation", "Société", "Politique", "Introspection", "Féminisme",
   "Digital", "One-man-show", "Duo", "Jeu de mots", "Poésie", "Ironie",
-  "Physique", "Franc-parler", "Punchlines",
+  "Physique", "Franc-parler", "Punchlines", "Acteur",
 ];
+
+const FLAGS = {
+  "France": "🇫🇷", "Belgique": "🇧🇪", "Suisse": "🇨🇭", "Canada": "🇨🇦",
+  "États-Unis": "🇺🇸", "Etats-Unis": "🇺🇸", "Maroc": "🇲🇦", "Algérie": "🇩🇿",
+  "Tunisie": "🇹🇳", "Côte d'Ivoire": "🇨🇮", "Sénégal": "🇸🇳", "Congo": "🇨🇩",
+  "Royaume-Uni": "🇬🇧", "Italie": "🇮🇹", "Espagne": "🇪🇸", "Allemagne": "🇩🇪",
+};
+function flagFor(pays) { return FLAGS[(pays || "").trim()] || ""; }
+
+function slugifyGenre(g) {
+  return (g || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
 
 const AVATAR_GRADIENTS = [
   ["#F0B429", "#C4402F"], ["#6C63C9", "#332C6B"], ["#3D9E7C", "#1A4636"], ["#D9695A", "#732A20"],
@@ -94,6 +110,24 @@ function VideoStars({ value, size = 14, interactive = false, onRate }) {
   );
 }
 function Pill({ children }) { return <span style={{ fontSize: 11, background: C.panel2, border: `1px solid ${C.border}`, padding: "4px 11px", borderRadius: 20, color: C.dim }}>{children}</span>; }
+function ClickablePill({ children, onClick, title }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      style={{
+        fontSize: 11, background: "rgba(240,180,41,0.12)", border: `1px solid rgba(240,180,41,0.4)`,
+        padding: "4px 11px", borderRadius: 20, color: C.gold, cursor: "pointer",
+        fontFamily: "inherit", transition: "background 0.15s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(240,180,41,0.22)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(240,180,41,0.12)")}
+    >
+      {children}
+    </button>
+  );
+}
 function SectionTitle({ children, right }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
@@ -436,6 +470,23 @@ function ComicGrid({ comicsWithStats, onOpen, title }) {
   );
 }
 
+/* ---------- Page liste par genre ---------- */
+function GenrePage({ genre, comicsWithStats, onOpen }) {
+  const list = useMemo(
+    () => comicsWithStats.filter((c) =>
+      (c.genres || "").split(",").map((s) => s.trim().toLowerCase()).includes((genre || "").toLowerCase())
+    ),
+    [comicsWithStats, genre]
+  );
+  // Petit plus SEO/UX : le titre d'onglet reflète le genre consulté, remis à zéro en quittant la page.
+  useEffect(() => {
+    const prev = document.title;
+    document.title = `Humoristes ${genre || ""} — PasDrôle.fr`;
+    return () => { document.title = prev; };
+  }, [genre]);
+  return <ComicGrid comicsWithStats={list} onOpen={onOpen} title={`GENRE · ${(genre || "").toUpperCase()}`} />;
+}
+
 /* ---------- Detail page with rating + review, edit own ---------- */
 /* ---------- Bloc vidéo (embed + notation dédiée) ---------- */
 function VideoBlock({ video, user, onRequireAuth }) {
@@ -496,7 +547,7 @@ function VideoBlock({ video, user, onRequireAuth }) {
   );
 }
 
-function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
+function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [comic, setComic] = useState(null);
   const [ratings, setRatings] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -592,6 +643,8 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
     return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement...</div>;
   }
 
+  const genreList = (comic.genres || "").split(",").map((s) => s.trim()).filter(Boolean);
+
   return (
     <div style={{ maxWidth: 1220, margin: "0 auto", padding: "24px 24px 60px" }}>
       <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 14, letterSpacing: 1, marginBottom: 18, padding: 0 }}>
@@ -605,8 +658,13 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth }) {
               <PhotoPlaceholder size={88} label={comic.nom} imgSrc={comic.photo_url} />
               <div>
                 <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
-                <div style={{ display: "flex", gap: 7, marginTop: 8, flexWrap: "wrap" }}>
-                  <Pill>{comic.pays}</Pill><Pill>depuis {comic.debut}</Pill>{computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}{comic.genres && <Pill>{comic.genres}</Pill>}
+                <div style={{ display: "flex", gap: 7, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <Pill>{flagFor(comic.pays)} {comic.pays}</Pill>
+                  {genreList.map((g) => (
+                    <ClickablePill key={g} title={`Voir tous les humoristes ${g}`} onClick={() => onOpenGenre(g)}>{g}</ClickablePill>
+                  ))}
+                  <Pill>depuis {comic.debut}</Pill>
+                  {computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}
                 </div>
               </div>
             </div>
@@ -1218,7 +1276,7 @@ export default function App() {
   // statique connue (ex: /classements), on ouvre directement la bonne page.
   useEffect(() => {
     const path = window.location.pathname.replace(/^\/|\/$/g, "");
-    if (!path) return;
+    if (!path || path.startsWith("genre/")) return; // /genre/xxx est géré par l'effet dédié ci-dessous, une fois les humoristes chargés
     const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
     if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
     api.fetchComicBySlug(path).then((c) => {
@@ -1226,11 +1284,35 @@ export default function App() {
     }).catch((e) => console.error("Erreur résolution URL:", e));
   }, []);
 
+  // Résout un lien direct/partagé /genre/xxx une fois les humoristes chargés (il faut
+  // connaître leurs genres pour retrouver le nom exact du genre à partir du slug).
+  const genreResolvedRef = useRef(false);
+  useEffect(() => {
+    if (genreResolvedRef.current || !comics.length) return;
+    const path = window.location.pathname.replace(/^\/|\/$/g, "");
+    if (path.startsWith("genre/")) {
+      const slug = path.slice("genre/".length);
+      const allGenres = new Set();
+      comics.forEach((c) => (c.genres || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((g) => allGenres.add(g)));
+      const match = [...allGenres].find((g) => slugifyGenre(g) === slug);
+      if (match) setNav({ page: "genre", genre: match });
+    }
+    genreResolvedRef.current = true;
+  }, [comics]);
+
   // Gère le bouton précédent/suivant du navigateur.
   useEffect(() => {
     const onPopState = () => {
       const path = window.location.pathname.replace(/^\/|\/$/g, "");
       if (!path) { setNav({ page: "home" }); return; }
+      if (path.startsWith("genre/")) {
+        const slug = path.slice("genre/".length);
+        const allGenres = new Set();
+        comics.forEach((c) => (c.genres || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((g) => allGenres.add(g)));
+        const match = [...allGenres].find((g) => slugifyGenre(g) === slug);
+        if (match) setNav({ page: "genre", genre: match });
+        return;
+      }
       const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
       if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
       const c = comics.find((x) => x.slug === path);
@@ -1247,6 +1329,13 @@ export default function App() {
     if (slug) window.history.pushState({}, "", `/${slug}`);
     setNav({ page: "detail", id, slug });
   }, [comics]);
+
+  // Ouvre la liste des humoristes partageant un genre donné (ex: Satire) ET met à jour l'URL.
+  const openGenre = useCallback((genre) => {
+    const slug = slugifyGenre(genre);
+    window.history.pushState({}, "", `/genre/${slug}`);
+    setNav({ page: "genre", genre });
+  }, []);
 
   // Change de page ET met à jour l'URL du navigateur (accueil, classements, humoristes, contact, mon espace, admin).
   const goToPage = useCallback((page) => {
@@ -1281,8 +1370,9 @@ export default function App() {
       )}
       {nav.page === "ranking" && <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={comicsWithStats.length} title="CLASSEMENT COMPLET" />}
       {nav.page === "comics" && <ComicGrid comicsWithStats={filtered} onOpen={openComic} title="HUMORISTES" />}
+      {nav.page === "genre" && <GenrePage genre={nav.genre} comicsWithStats={comicsWithStats} onOpen={openComic} />}
       {nav.page === "detail" && (
-        <ComicDetail comicId={nav.id} user={user} onBack={() => goToPage("home")} onRequireAuth={() => setShowAuth(true)} />
+        <ComicDetail comicId={nav.id} user={user} onBack={() => goToPage("home")} onRequireAuth={() => setShowAuth(true)} onOpenGenre={openGenre} />
       )}
       {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={openComic} />}
       {nav.page === "contact" && <ContactPage />}
