@@ -350,7 +350,7 @@ function Hero({ comicsWithStats }) {
 }
 
 function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT" }) {
-  const ranked = useMemo(() => [...comicsWithStats].sort((a, b) => b.avg10 - a.avg10).slice(0, limit), [comicsWithStats, limit]);
+  const ranked = useMemo(() => [...comicsWithStats].sort((a, b) => b.avg10 - a.avg10 || b.votes - a.votes).slice(0, limit), [comicsWithStats, limit]);
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
       <SectionTitle>{title}</SectionTitle>
@@ -367,7 +367,7 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
               <PhotoPlaceholder size={58} label={c.nom} imgSrc={c.photo_url} />
             </div>
             <div style={{ color: C.text, fontSize: 13.5, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{c.nom}</div>
-            <div style={{ textAlign: "center", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? c.avg10.toFixed(1).replace(".", ",") : "—"} ★</div>
+            <div style={{ textAlign: "center", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? c.avg10.toFixed(1).replace(".", ",") : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
             <div style={{ textAlign: "center", color: C.dim2, fontSize: 10.5 }}>({c.votes})</div>
           </button>
         ))}
