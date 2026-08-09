@@ -1797,7 +1797,7 @@ export default function App() {
       {nav.page === "home" && (
         <>
           <Hero comicsWithStats={comicsWithStats} />
-          <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={5} title="TOP 5 DU MOMENT" />
+          <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
           <MatchCTA onLaunch={openRandomMatch} />
           <MatchLeaderboard comics={comics} />
           <LatestReviews onOpen={openComic} />
