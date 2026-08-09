@@ -851,7 +851,144 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   );
 }
 
-/* ---------- Mon espace ---------- */
+/* ---------- Mode Match (duels) ---------- */
+// Ordonne toujours la paire de la même façon (par slug alphabétique) pour que tous les votes
+// d'un même duel — peu importe qui l'a lancé — retombent sur la même ligne en base.
+function orderMatchPair(a, b) {
+  return a.slug < b.slug ? [a, b] : [b, a];
+}
+function matchSlugFor(a, b) {
+  const [first, second] = orderMatchPair(a, b);
+  return `${first.slug}-vs-${second.slug}`;
+}
+function CrossedSwords({ size = 22, color = C.gold }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M3 3l8 8M21 3l-8 8M6 21l6-6M18 21l-6-6" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="1.6" fill={color} />
+    </svg>
+  );
+}
+function MatchCTA({ onLaunch }) {
+  return (
+    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
+      <button onClick={onLaunch} style={{
+        width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+        background: `linear-gradient(120deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
+        borderRadius: 16, padding: "22px 20px", cursor: "pointer", textAlign: "center",
+      }}>
+        <CrossedSwords size={26} />
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 1, color: C.text }}>
+          QUI L'EMPORTE ? <span style={{ color: C.gold }}>LANCER UN DUEL</span>
+        </span>
+        <CrossedSwords size={26} />
+      </button>
+    </section>
+  );
+}
+function MatchFighterCard({ comic, picked, isWinner, pct, disabled, onPick }) {
+  return (
+    <button onClick={onPick} disabled={disabled} style={{
+      flex: "1 1 200px", maxWidth: 260, background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`,
+      border: `1.5px solid ${picked && isWinner ? C.gold : C.border}`, borderRadius: 18, padding: "26px 18px",
+      cursor: disabled ? "default" : "pointer", textAlign: "center", position: "relative",
+    }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <PhotoPlaceholder size={84} label={comic.nom} imgSrc={comic.photo_url} />
+      </div>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, color: C.text, letterSpacing: 0.5, marginBottom: picked ? 12 : 0 }}>{comic.nom}</div>
+      {picked && (
+        <>
+          <div style={{ height: 8, background: C.bg, borderRadius: 20, overflow: "hidden", marginBottom: 6 }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: isWinner ? `linear-gradient(90deg, ${C.goldSoft}, ${C.gold})` : C.dim2, transition: "width 0.4s ease" }} />
+          </div>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: isWinner ? C.gold : C.dim }}>{pct}%</div>
+        </>
+      )}
+    </button>
+  );
+}
+function MatchPage({ comicA, comicB, matchSlug, onNewMatch }) {
+  const [votes, setVotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [myPick, setMyPick] = useState(null); // id de l'humoriste choisi par ce visiteur
+  const [copied, setCopied] = useState(false);
+  const storageKey = `match_voted:${matchSlug}`;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [ordA, ordB] = orderMatchPair(comicA, comicB);
+      const v = await api.fetchMatchVotes(ordA.id, ordB.id);
+      setVotes(v);
+    } catch (e) {
+      console.error("Erreur chargement duel:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [comicA, comicB]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey);
+    setMyPick(saved || null);
+    load();
+  }, [load, storageKey]);
+
+  const vote = async (winner) => {
+    if (myPick) return;
+    setMyPick(winner.id);
+    localStorage.setItem(storageKey, winner.id);
+    try {
+      const [ordA, ordB] = orderMatchPair(comicA, comicB);
+      await api.submitMatchVote(ordA.id, ordB.id, winner.id);
+      await load();
+    } catch (e) {
+      console.error("Erreur vote duel:", e);
+    }
+  };
+
+  const share = async () => {
+    const url = `${window.location.origin}/match/${matchSlug}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: `${comicA.nom} vs ${comicB.nom} — PasDrôle.fr`, url }); return; } catch (e) { /* annulé */ }
+    }
+    navigator.clipboard?.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const total = votes.length;
+  const votesFor = (id) => votes.filter((v) => v.winner_id === id).length;
+  const pctFor = (id) => (total ? Math.round((votesFor(id) / total) * 100) : 0);
+
+  return (
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px 60px", textAlign: "center" }}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 22 }}>
+        <CrossedSwords size={20} />
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 2, color: C.dim }}>MODE MATCH</span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18, flexWrap: "wrap" }}>
+        <MatchFighterCard comic={comicA} picked={!!myPick} isWinner={myPick === comicA.id} pct={pctFor(comicA.id)} disabled={!!myPick || loading} onPick={() => vote(comicA)} />
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: C.dim2 }}>VS</div>
+        <MatchFighterCard comic={comicB} picked={!!myPick} isWinner={myPick === comicB.id} pct={pctFor(comicB.id)} disabled={!!myPick || loading} onPick={() => vote(comicB)} />
+      </div>
+
+      {myPick ? (
+        <div style={{ marginTop: 22, color: C.dim2, fontSize: 12.5 }}>{total} vote{total !== 1 ? "s" : ""} sur ce duel</div>
+      ) : (
+        <div style={{ marginTop: 22, color: C.dim2, fontSize: 12.5 }}>Clique sur ton préféré</div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 26, flexWrap: "wrap" }}>
+        <GoldButton onClick={onNewMatch}>Nouveau duel</GoldButton>
+        <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.border}`, borderRadius: 9, padding: "11px 20px", cursor: "pointer", color: C.text, fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
+          {copied ? "LIEN COPIÉ !" : "PARTAGER"}
+        </button>
+      </div>
+    </div>
+  );
+}
 function MyActivityPage({ user, profile, onOpenComic }) {
   const [data, setData] = useState(null);
   useEffect(() => { if (user) api.fetchMyActivity(user.id).then(setData); }, [user]);
@@ -1378,7 +1515,7 @@ export default function App() {
   // statique connue (ex: /classements), on ouvre directement la bonne page.
   useEffect(() => {
     const path = window.location.pathname.replace(/^\/|\/$/g, "");
-    if (!path || path.startsWith("genre/")) return; // /genre/xxx est géré par l'effet dédié ci-dessous, une fois les humoristes chargés
+    if (!path || path.startsWith("genre/") || path.startsWith("match/")) return; // gérés par l'effet dédié ci-dessous, une fois les humoristes chargés
     const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
     if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
     api.fetchComicBySlug(path).then((c) => {
@@ -1386,8 +1523,8 @@ export default function App() {
     }).catch((e) => console.error("Erreur résolution URL:", e));
   }, []);
 
-  // Résout un lien direct/partagé /genre/xxx une fois les humoristes chargés (il faut
-  // connaître leurs genres pour retrouver le nom exact du genre à partir du slug).
+  // Résout un lien direct/partagé /genre/xxx OU /match/xxx-vs-yyy une fois les humoristes
+  // chargés (il faut connaître leurs slugs pour retrouver de qui il s'agit).
   const genreResolvedRef = useRef(false);
   useEffect(() => {
     if (genreResolvedRef.current || !comics.length) return;
@@ -1398,6 +1535,12 @@ export default function App() {
       comics.forEach((c) => (c.genres || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((g) => allGenres.add(g)));
       const match = [...allGenres].find((g) => slugifyGenre(g) === slug);
       if (match) setNav({ page: "genre", genre: match });
+    } else if (path.startsWith("match/")) {
+      const slug = path.slice("match/".length);
+      const [slugA, slugB] = slug.split("-vs-");
+      const a = comics.find((c) => c.slug === slugA);
+      const b = comics.find((c) => c.slug === slugB);
+      if (a && b) setNav({ page: "match", comicAId: a.id, comicBId: b.id, matchSlug: slug });
     }
     genreResolvedRef.current = true;
   }, [comics]);
@@ -1413,6 +1556,14 @@ export default function App() {
         comics.forEach((c) => (c.genres || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((g) => allGenres.add(g)));
         const match = [...allGenres].find((g) => slugifyGenre(g) === slug);
         if (match) setNav({ page: "genre", genre: match });
+        return;
+      }
+      if (path.startsWith("match/")) {
+        const slug = path.slice("match/".length);
+        const [slugA, slugB] = slug.split("-vs-");
+        const a = comics.find((c) => c.slug === slugA);
+        const b = comics.find((c) => c.slug === slugB);
+        if (a && b) setNav({ page: "match", comicAId: a.id, comicBId: b.id, matchSlug: slug });
         return;
       }
       const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
@@ -1432,7 +1583,23 @@ export default function App() {
     setNav({ page: "detail", id, slug });
   }, [comics]);
 
-  // Ouvre la liste des humoristes partageant un genre donné (ex: Satire) ET met à jour l'URL.
+  // Tire un duel aléatoire parmi les humoristes publiés et ouvre directement la page du duel
+  // (1 clic depuis l'accueil, pas d'étape intermédiaire). Évite de retomber sur le duel précédent.
+  const lastMatchRef = useRef(null);
+  const openRandomMatch = useCallback(() => {
+    if (comics.length < 2) return;
+    let a, b, slug;
+    let attempts = 0;
+    do {
+      a = comics[Math.floor(Math.random() * comics.length)];
+      do { b = comics[Math.floor(Math.random() * comics.length)]; } while (b.id === a.id);
+      slug = matchSlugFor(a, b);
+      attempts++;
+    } while (slug === lastMatchRef.current && attempts < 8);
+    lastMatchRef.current = slug;
+    window.history.pushState({}, "", `/match/${slug}`);
+    setNav({ page: "match", comicAId: a.id, comicBId: b.id, matchSlug: slug });
+  }, [comics]);
   const openGenre = useCallback((genre) => {
     const slug = slugifyGenre(genre);
     window.history.pushState({}, "", `/genre/${slug}`);
@@ -1470,12 +1637,19 @@ export default function App() {
         <>
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={5} title="TOP 5 DU MOMENT" />
+          <MatchCTA onLaunch={openRandomMatch} />
           <LatestReviews onOpen={openComic} />
         </>
       )}
       {nav.page === "ranking" && <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={comicsWithStats.length} title="CLASSEMENT COMPLET" />}
       {nav.page === "comics" && <ComicGrid comicsWithStats={filtered} onOpen={openComic} title="HUMORISTES" />}
       {nav.page === "genre" && <GenrePage genre={nav.genre} comicsWithStats={comicsWithStats} onOpen={openComic} />}
+      {nav.page === "match" && (() => {
+        const comicA = comics.find((c) => c.id === nav.comicAId);
+        const comicB = comics.find((c) => c.id === nav.comicBId);
+        if (!comicA || !comicB) return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement du duel...</div>;
+        return <MatchPage comicA={comicA} comicB={comicB} matchSlug={nav.matchSlug} onNewMatch={openRandomMatch} />;
+      })()}
       {nav.page === "detail" && (
         <ComicDetail comicId={nav.id} user={user} onBack={() => goToPage("home")} onRequireAuth={() => setShowAuth(true)} onOpenGenre={openGenre} />
       )}
