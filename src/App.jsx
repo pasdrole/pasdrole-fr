@@ -26,20 +26,81 @@ const GENRE_OPTIONS = [
   "Physique", "Franc-parler", "Punchlines", "Acteur",
 ];
 
-const FLAGS = {
-  // Noms complets (insensible à la casse)
-  "france": "🇫🇷", "belgique": "🇧🇪", "suisse": "🇨🇭", "canada": "🇨🇦",
-  "états-unis": "🇺🇸", "etats-unis": "🇺🇸", "maroc": "🇲🇦", "algérie": "🇩🇿", "algerie": "🇩🇿",
-  "tunisie": "🇹🇳", "côte d'ivoire": "🇨🇮", "cote d'ivoire": "🇨🇮", "sénégal": "🇸🇳", "senegal": "🇸🇳",
-  "congo": "🇨🇩", "royaume-uni": "🇬🇧", "angleterre": "🇬🇧", "italie": "🇮🇹", "espagne": "🇪🇸",
-  "allemagne": "🇩🇪", "liban": "🇱🇧", "portugal": "🇵🇹", "pays-bas": "🇳🇱", "guadeloupe": "🇬🇵",
-  "martinique": "🇲🇶", "réunion": "🇷🇪", "reunion": "🇷🇪", "haïti": "🇭🇹", "haiti": "🇭🇹",
-  // Codes courts (FR, BE, US...) — au cas où les fiches utilisent des abréviations
-  "fr": "🇫🇷", "be": "🇧🇪", "ch": "🇨🇭", "ca": "🇨🇦", "us": "🇺🇸", "ma": "🇲🇦", "dz": "🇩🇿",
-  "tn": "🇹🇳", "ci": "🇨🇮", "sn": "🇸🇳", "cd": "🇨🇩", "gb": "🇬🇧", "uk": "🇬🇧", "it": "🇮🇹",
-  "es": "🇪🇸", "de": "🇩🇪", "lb": "🇱🇧", "pt": "🇵🇹", "nl": "🇳🇱",
+// Correspondances pour retrouver le pays à partir d'un code court (FR, BE...) éventuellement stocké en base.
+const COUNTRY_ALIASES = {
+  "fr": "france", "be": "belgique", "ch": "suisse", "ca": "canada", "us": "états-unis", "ma": "maroc",
+  "dz": "algérie", "tn": "tunisie", "ci": "côte d'ivoire", "sn": "sénégal", "cd": "congo", "gb": "royaume-uni",
+  "uk": "royaume-uni", "it": "italie", "es": "espagne", "de": "allemagne", "lb": "liban", "pt": "portugal",
+  "nl": "pays-bas", "algerie": "algérie", "etats-unis": "états-unis", "cote d'ivoire": "côte d'ivoire",
+  "senegal": "sénégal", "reunion": "réunion", "haiti": "haïti",
 };
-function flagFor(pays) { return FLAGS[(pays || "").trim().toLowerCase()] || "🏳️"; }
+
+// Drapeaux dessinés en SVG (couleurs officielles) — contrairement aux emoji 🇫🇷, ça s'affiche
+// toujours correctement, même sur les configs Windows/navigateurs qui n'ont pas la police idoine.
+const FLAG_DEFS = {
+  "france": { dir: "v", colors: ["#0055A4", "#FFFFFF", "#EF4135"] },
+  "belgique": { dir: "v", colors: ["#000000", "#FAE042", "#ED2939"] },
+  "suisse": { dir: "cross", colors: ["#FF0000", "#FFFFFF"] },
+  "canada": { dir: "v", colors: ["#FF0000", "#FFFFFF", "#FF0000"] },
+  "maroc": { dir: "solid", colors: ["#C1272D"] },
+  "algérie": { dir: "v", colors: ["#006233", "#FFFFFF"] },
+  "tunisie": { dir: "solid", colors: ["#E70013"] },
+  "côte d'ivoire": { dir: "v", colors: ["#F77F00", "#FFFFFF", "#009E60"] },
+  "sénégal": { dir: "v", colors: ["#00853F", "#FDEF42", "#E31B23"] },
+  "congo": { dir: "v", colors: ["#007FFF", "#F7D618", "#CE1021"] },
+  "royaume-uni": { dir: "solid", colors: ["#00247D"] },
+  "italie": { dir: "v", colors: ["#009246", "#FFFFFF", "#CE2B37"] },
+  "espagne": { dir: "h", colors: ["#AA151B", "#F1BF00", "#AA151B"] },
+  "allemagne": { dir: "h", colors: ["#000000", "#DD0000", "#FFCE00"] },
+  "liban": { dir: "h", colors: ["#ED1C24", "#FFFFFF", "#ED1C24"] },
+  "portugal": { dir: "v", colors: ["#046A38", "#DA291C"] },
+  "pays-bas": { dir: "h", colors: ["#AE1C28", "#FFFFFF", "#21468B"] },
+  "états-unis": { dir: "h", colors: ["#B22234", "#FFFFFF", "#3C3B6E"] },
+  "réunion": { dir: "v", colors: ["#0055A4", "#FFFFFF", "#EF4135"] },
+  "haïti": { dir: "h", colors: ["#00209F", "#D21034"] },
+};
+
+function FlagIcon({ pays, size = 18 }) {
+  const key = (pays || "").trim().toLowerCase();
+  const resolved = FLAG_DEFS[key] ? key : COUNTRY_ALIASES[key];
+  const def = FLAG_DEFS[resolved];
+  const w = size, h = Math.round(size * 0.72);
+  const wrap = { display: "inline-block", width: w, height: h, borderRadius: 2, overflow: "hidden", border: "1px solid rgba(255,255,255,0.15)", flexShrink: 0, verticalAlign: "middle" };
+  if (!def) return <span title={pays} style={{ ...wrap, background: C.border }} />;
+  if (def.dir === "solid") {
+    return <span style={wrap}><svg width={w} height={h}><rect width={w} height={h} fill={def.colors[0]} /></svg></span>;
+  }
+  if (def.dir === "cross") {
+    return (
+      <span style={wrap}>
+        <svg width={w} height={h}>
+          <rect width={w} height={h} fill={def.colors[0]} />
+          <rect x={w * 0.42} y={h * 0.15} width={w * 0.16} height={h * 0.7} fill={def.colors[1]} />
+          <rect x={w * 0.2} y={h * 0.42} width={w * 0.6} height={h * 0.16} fill={def.colors[1]} />
+        </svg>
+      </span>
+    );
+  }
+  const n = def.colors.length;
+  const stripeW = w / n, stripeH = h / n;
+  return (
+    <span style={wrap}>
+      <svg width={w} height={h}>
+        {def.colors.map((c, i) => def.dir === "v"
+          ? <rect key={i} x={i * stripeW} y={0} width={stripeW + 0.5} height={h} fill={c} />
+          : <rect key={i} x={0} y={i * stripeH} width={w} height={stripeH + 0.5} fill={c} />
+        )}
+      </svg>
+    </span>
+  );
+}
+function CountryPill({ pays }) {
+  return (
+    <span style={{ fontSize: 11, background: C.panel2, border: `1px solid ${C.border}`, padding: "4px 11px 4px 6px", borderRadius: 20, color: C.dim, display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <FlagIcon pays={pays} size={16} /> {pays}
+    </span>
+  );
+}
 
 function slugifyGenre(g) {
   return (g || "")
@@ -700,7 +761,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
               <div>
                 <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
                 <div style={{ display: "flex", gap: 7, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <Pill>{flagFor(comic.pays)} {comic.pays}</Pill>
+                  <CountryPill pays={comic.pays} />
                   {genreList.map((g) => (
                     <ClickablePill key={g} title={`Voir tous les humoristes ${g}`} onClick={() => onOpenGenre(g)}>{g}</ClickablePill>
                   ))}
