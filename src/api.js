@@ -114,6 +114,12 @@ export async function updateComicStatus(id, status) {
   if (error) throw error;
 }
 
+// Édition complète d'une fiche déjà existante (admin) — nom, pays, genres, bio, spectacles, date de naissance.
+export async function updateComic(id, fields) {
+  const { error } = await supabase.from("comics").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteComic(id) {
   const { error } = await supabase.from("comics").delete().eq("id", id);
   if (error) throw error;
@@ -350,6 +356,15 @@ export async function fetchMatchVotes(comicAId, comicBId) {
 export async function submitMatchVote(comicAId, comicBId, winnerId) {
   const { error } = await supabase.from("match_votes").insert({ comic_a_id: comicAId, comic_b_id: comicBId, winner_id: winnerId });
   if (error) throw error;
+}
+
+// Tous les votes de duels (pour calculer les classements "plus grand vainqueur / loser").
+// Volume raisonnable tant que le mode Match reste un gadget viral ; à revoir avec une vraie
+// requête d'agrégation SQL si ça grossit beaucoup.
+export async function fetchAllMatchVotes() {
+  const { data, error } = await supabase.from("match_votes").select("comic_a_id, comic_b_id, winner_id, created_at");
+  if (error) throw error;
+  return data;
 }
 
 // ---------- "Mes avis" — tout ce qu'un compte a noté/commenté ----------
