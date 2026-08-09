@@ -27,12 +27,19 @@ const GENRE_OPTIONS = [
 ];
 
 const FLAGS = {
-  "France": "🇫🇷", "Belgique": "🇧🇪", "Suisse": "🇨🇭", "Canada": "🇨🇦",
-  "États-Unis": "🇺🇸", "Etats-Unis": "🇺🇸", "Maroc": "🇲🇦", "Algérie": "🇩🇿",
-  "Tunisie": "🇹🇳", "Côte d'Ivoire": "🇨🇮", "Sénégal": "🇸🇳", "Congo": "🇨🇩",
-  "Royaume-Uni": "🇬🇧", "Italie": "🇮🇹", "Espagne": "🇪🇸", "Allemagne": "🇩🇪",
+  // Noms complets (insensible à la casse)
+  "france": "🇫🇷", "belgique": "🇧🇪", "suisse": "🇨🇭", "canada": "🇨🇦",
+  "états-unis": "🇺🇸", "etats-unis": "🇺🇸", "maroc": "🇲🇦", "algérie": "🇩🇿", "algerie": "🇩🇿",
+  "tunisie": "🇹🇳", "côte d'ivoire": "🇨🇮", "cote d'ivoire": "🇨🇮", "sénégal": "🇸🇳", "senegal": "🇸🇳",
+  "congo": "🇨🇩", "royaume-uni": "🇬🇧", "angleterre": "🇬🇧", "italie": "🇮🇹", "espagne": "🇪🇸",
+  "allemagne": "🇩🇪", "liban": "🇱🇧", "portugal": "🇵🇹", "pays-bas": "🇳🇱", "guadeloupe": "🇬🇵",
+  "martinique": "🇲🇶", "réunion": "🇷🇪", "reunion": "🇷🇪", "haïti": "🇭🇹", "haiti": "🇭🇹",
+  // Codes courts (FR, BE, US...) — au cas où les fiches utilisent des abréviations
+  "fr": "🇫🇷", "be": "🇧🇪", "ch": "🇨🇭", "ca": "🇨🇦", "us": "🇺🇸", "ma": "🇲🇦", "dz": "🇩🇿",
+  "tn": "🇹🇳", "ci": "🇨🇮", "sn": "🇸🇳", "cd": "🇨🇩", "gb": "🇬🇧", "uk": "🇬🇧", "it": "🇮🇹",
+  "es": "🇪🇸", "de": "🇩🇪", "lb": "🇱🇧", "pt": "🇵🇹", "nl": "🇳🇱",
 };
-function flagFor(pays) { return FLAGS[(pays || "").trim()] || ""; }
+function flagFor(pays) { return FLAGS[(pays || "").trim().toLowerCase()] || "🏳️"; }
 
 function slugifyGenre(g) {
   return (g || "")
