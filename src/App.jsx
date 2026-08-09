@@ -890,6 +890,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
   const [videoSearchComic, setVideoSearchComic] = useState(null);
   const [adminTab, setAdminTab] = useState("humoristes");
+  const [sortAlpha, setSortAlpha] = useState(false);
   const [pendingReviews, setPendingReviews] = useState([]);
 
   const loadPendingReviews = useCallback(async () => {
@@ -1127,11 +1128,12 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
               <button onClick={publishAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>Tout publier</button>
               <button onClick={draftAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Tout brouillon</button>
               <button onClick={deleteAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(224,87,74,0.15)", color: C.red, border: "none", cursor: "pointer" }}>Tout supprimer</button>
+              <button onClick={() => setSortAlpha((s) => !s)} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: sortAlpha ? "rgba(240,180,41,0.15)" : "rgba(154,147,166,0.15)", color: sortAlpha ? C.gold : C.dim, border: "none", cursor: "pointer" }}>A-Z</button>
               <span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>
             </div>
           }>BASE DES HUMORISTES</SectionTitle>
           <div style={{ maxHeight: 560, overflowY: "auto" }}>
-            {comics.map((c) => (
+            {(sortAlpha ? [...comics].sort((a, b) => a.nom.localeCompare(b.nom, "fr")) : comics).map((c) => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${C.border}` }}>
                 <label style={{ position: "relative", cursor: "pointer", flexShrink: 0 }} title="Cliquer pour changer la photo">
                   <PhotoPlaceholder size={36} label={c.nom} imgSrc={c.photo_url} />
