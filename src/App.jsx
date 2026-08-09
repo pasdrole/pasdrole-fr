@@ -15,6 +15,9 @@ const C = {
   green: "#3FB878", red: "#E0574A",
 };
 
+// Correspondance page interne <-> URL propre (pour le référencement et le partage de liens).
+const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", contact: "/contact", mine: "/mon-espace", admin: "/admin" };
+
 const GENRE_OPTIONS = [
   "Sketch", "Satire", "Stand-up", "Imitation", "Impro", "Parodie", "Absurde",
   "Autodérision", "Storytelling", "Chronique", "Cynisme", "Provocation",
@@ -193,7 +196,7 @@ function AuthModal({ onClose, onAuthed }) {
 }
 
 /* ---------- Header ---------- */
-function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLogout, comicsWithStats, onOpenComic }) {
+function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onLogout, comicsWithStats, onOpenComic }) {
   const items = [
     { key: "home", label: "Accueil", icon: Home },
     { key: "ranking", label: "Classements", icon: LayoutGrid },
@@ -214,13 +217,13 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
   return (
     <header style={{ background: "rgba(21,19,24,0.9)", backdropFilter: "blur(14px)", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ maxWidth: 1220, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-        <div onClick={() => setNav({ page: "home" })} style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+        <div onClick={() => navigate("home")} style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
           <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ height: 168, width: "auto" }} />
           <div style={{ fontSize: 10.5, color: C.text, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
         </div>
         <nav style={{ display: "flex", gap: 2 }}>
           {items.map((it) => (
-            <button key={it.key} onClick={() => setNav({ page: it.key })} style={{
+            <button key={it.key} onClick={() => navigate(it.key)} style={{
               display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer",
               padding: "9px 13px", borderRadius: 7, color: nav.page === it.key ? C.gold : C.dim,
               borderBottom: nav.page === it.key ? `2px solid ${C.gold}` : "2px solid transparent",
@@ -228,7 +231,7 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
             }}><it.icon size={13} /> {it.label.toUpperCase()}</button>
           ))}
           {profile?.role === "admin" && (
-            <button onClick={() => setNav({ page: "admin" })} style={{
+            <button onClick={() => navigate("admin")} style={{
               display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer",
               padding: "9px 13px", borderRadius: 7, color: nav.page === "admin" ? C.gold : C.dim,
               borderBottom: nav.page === "admin" ? `2px solid ${C.gold}` : "2px solid transparent",
@@ -271,7 +274,7 @@ function Header({ nav, setNav, query, setQuery, user, profile, onOpenAuth, onLog
           </div>
           {user ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => setNav({ page: "mine" })} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.text, fontSize: 12.5 }}>
+              <button onClick={() => navigate("mine")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.text, fontSize: 12.5 }}>
                 <UserCircle size={16} color={C.gold} /> {profile?.pseudo || "Mon compte"}
               </button>
               <button onClick={onLogout} title="Se déconnecter" style={{ background: "none", border: "none", cursor: "pointer" }}>
@@ -1010,6 +1013,13 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
     await Promise.all(comics.map((c) => api.deleteComic(c.id)));
     await load(); onRefreshPublic();
   };
+  const regenerateSlugs = async () => {
+    if (!window.confirm("Régénérer les URL (slugs) de tous les humoristes ? À ne faire qu'une fois.")) return;
+    const results = await api.regenerateAllSlugs();
+    const errors = results.filter((r) => r.status === "error");
+    alert(errors.length ? `Terminé avec ${errors.length} erreur(s).` : `${results.length} URL régénérées avec succès.`);
+    await load(); onRefreshPublic();
+  };
 
   return (
     <div style={{ maxWidth: 1220, margin: "0 auto", padding: "32px 24px 60px" }}>
@@ -1129,6 +1139,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
               <button onClick={draftAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Tout brouillon</button>
               <button onClick={deleteAll} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(224,87,74,0.15)", color: C.red, border: "none", cursor: "pointer" }}>Tout supprimer</button>
               <button onClick={() => setSortAlpha((s) => !s)} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: sortAlpha ? "rgba(240,180,41,0.15)" : "rgba(154,147,166,0.15)", color: sortAlpha ? C.gold : C.dim, border: "none", cursor: "pointer" }}>A-Z</button>
+              <button onClick={regenerateSlugs} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Régénérer URLs</button>
               <span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>
             </div>
           }>BASE DES HUMORISTES</SectionTitle>
@@ -1203,10 +1214,51 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, [loadPublicComics, refreshAuth]);
 
+  // Au premier chargement, si l'URL correspond à une fiche (ex: /gad-elmaleh) ou une page
+  // statique connue (ex: /classements), on ouvre directement la bonne page.
+  useEffect(() => {
+    const path = window.location.pathname.replace(/^\/|\/$/g, "");
+    if (!path) return;
+    const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
+    if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
+    api.fetchComicBySlug(path).then((c) => {
+      if (c) setNav({ page: "detail", id: c.id, slug: c.slug });
+    }).catch((e) => console.error("Erreur résolution URL:", e));
+  }, []);
+
+  // Gère le bouton précédent/suivant du navigateur.
+  useEffect(() => {
+    const onPopState = () => {
+      const path = window.location.pathname.replace(/^\/|\/$/g, "");
+      if (!path) { setNav({ page: "home" }); return; }
+      const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
+      if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
+      const c = comics.find((x) => x.slug === path);
+      if (c) setNav({ page: "detail", id: c.id, slug: c.slug });
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [comics]);
+
+  // Ouvre une fiche ET met à jour l'URL du navigateur avec son slug (ex: /gad-elmaleh).
+  const openComic = useCallback((id) => {
+    const c = comics.find((x) => x.id === id);
+    const slug = c?.slug;
+    if (slug) window.history.pushState({}, "", `/${slug}`);
+    setNav({ page: "detail", id, slug });
+  }, [comics]);
+
+  // Change de page ET met à jour l'URL du navigateur (accueil, classements, humoristes, contact, mon espace, admin).
+  const goToPage = useCallback((page) => {
+    const path = PAGE_PATHS[page] || "/";
+    if (window.location.pathname !== path) window.history.pushState({}, "", path);
+    setNav({ page });
+  }, []);
+
   const comicsWithStats = useMemo(() => comics.map((c) => ({ ...c, ...overallAvg(ratingsByComic[c.id] || []) })), [comics, ratingsByComic]);
   const filtered = useMemo(() => query.trim() ? comicsWithStats.filter((c) => c.nom.toLowerCase().includes(query.toLowerCase())) : comicsWithStats, [comicsWithStats, query]);
 
-  const logout = async () => { await supabase.auth.signOut(); setNav({ page: "home" }); };
+  const logout = async () => { await supabase.auth.signOut(); goToPage("home"); };
 
   if (loading) {
     return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1218,23 +1270,23 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Inter, sans-serif" }}>
       <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }`}</style>
 
-      <Header nav={nav} setNav={setNav} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} comicsWithStats={comicsWithStats} onOpenComic={(id) => setNav({ page: "detail", id })} />
+      <Header nav={nav} navigate={goToPage} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} comicsWithStats={comicsWithStats} onOpenComic={openComic} />
 
       {nav.page === "home" && (
         <>
           <Hero comicsWithStats={comicsWithStats} />
-          <TopStrip comicsWithStats={comicsWithStats} onOpen={(id) => setNav({ page: "detail", id })} limit={10} />
-          <LatestReviews onOpen={(id) => setNav({ page: "detail", id })} />
+          <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={10} />
+          <LatestReviews onOpen={openComic} />
         </>
       )}
-      {nav.page === "ranking" && <TopStrip comicsWithStats={comicsWithStats} onOpen={(id) => setNav({ page: "detail", id })} limit={comicsWithStats.length} title="CLASSEMENT COMPLET" />}
-      {nav.page === "comics" && <ComicGrid comicsWithStats={filtered} onOpen={(id) => setNav({ page: "detail", id })} title="HUMORISTES" />}
+      {nav.page === "ranking" && <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={comicsWithStats.length} title="CLASSEMENT COMPLET" />}
+      {nav.page === "comics" && <ComicGrid comicsWithStats={filtered} onOpen={openComic} title="HUMORISTES" />}
       {nav.page === "detail" && (
-        <ComicDetail comicId={nav.id} user={user} onBack={() => setNav({ page: "home" })} onRequireAuth={() => setShowAuth(true)} />
+        <ComicDetail comicId={nav.id} user={user} onBack={() => goToPage("home")} onRequireAuth={() => setShowAuth(true)} />
       )}
-      {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={(id) => setNav({ page: "detail", id })} />}
+      {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={openComic} />}
       {nav.page === "contact" && <ContactPage />}
-      {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={(id) => setNav({ page: "detail", id })} />}
+      {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={openComic} />}
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthed={refreshAuth} />}
 
