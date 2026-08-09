@@ -13,6 +13,20 @@ function slugify(nom) {
   return nom.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+// Génère un slug propre (ex: "gad-elmaleh") en évitant les doublons ; si le nom existe déjà,
+// ajoute -2, -3, etc. plutôt qu'un suffixe aléatoire, pour garder des URL lisibles.
+async function generateUniqueSlug(nom, existingSlugs) {
+  const base = slugify(nom);
+  let candidate = base;
+  let i = 2;
+  while (existingSlugs.has(candidate)) {
+    candidate = `${base}-${i}`;
+    i++;
+  }
+  existingSlugs.add(candidate);
+  return candidate;
+}
+
 // ---------- Humoristes ----------
 export async function fetchPublishedComics() {
   const { data, error } = await supabase.from("comics").select("*").eq("status", "published").order("nom");
@@ -32,18 +46,50 @@ export async function fetchComicById(id) {
   return data;
 }
 
+export async function fetchComicBySlug(slug) {
+  const { data, error } = await supabase.from("comics").select("*").eq("slug", slug).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function createComic(comic) {
-  const payload = { ...comic, slug: slugify(comic.nom) + "-" + Math.random().toString(36).slice(2, 6) };
+  const { data: existing, error: e0 } = await supabase.from("comics").select("slug");
+  if (e0) throw e0;
+  const existingSlugs = new Set((existing || []).map((c) => c.slug));
+  const slug = await generateUniqueSlug(comic.nom, existingSlugs);
+  const payload = { ...comic, slug };
   const { data, error } = await supabase.from("comics").insert(payload).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function bulkCreateComics(comics) {
-  const payload = comics.map((c) => ({ ...c, slug: slugify(c.nom) + "-" + Math.random().toString(36).slice(2, 6) }));
+  const { data: existing, error: e0 } = await supabase.from("comics").select("slug");
+  if (e0) throw e0;
+  const existingSlugs = new Set((existing || []).map((c) => c.slug));
+  const payload = [];
+  for (const c of comics) {
+    const slug = await generateUniqueSlug(c.nom, existingSlugs);
+    payload.push({ ...c, slug });
+  }
   const { data, error } = await supabase.from("comics").insert(payload).select();
   if (error) throw error;
   return data;
+}
+
+// Migration à lancer une fois : régénère un slug propre pour TOUS les humoristes déjà en
+// base (utile pour ceux créés avant ce changement, qui ont un slug avec suffixe aléatoire).
+export async function regenerateAllSlugs() {
+  const { data: allComics, error } = await supabase.from("comics").select("id, nom").order("nom");
+  if (error) throw error;
+  const existingSlugs = new Set();
+  const results = [];
+  for (const c of allComics) {
+    const slug = await generateUniqueSlug(c.nom, existingSlugs);
+    const { error: upErr } = await supabase.from("comics").update({ slug }).eq("id", c.id);
+    results.push({ nom: c.nom, slug, status: upErr ? "error" : "ok" });
+  }
+  return results;
 }
 
 // Met à jour uniquement la date de naissance d'humoristes déjà existants (identifiés par
