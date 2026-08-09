@@ -110,6 +110,53 @@ function slugifyGenre(g) {
     .replace(/(^-|-$)/g, "");
 }
 
+/* ---------- SEO : titre, meta description, Open Graph, JSON-LD ---------- */
+const SITE_NAME = "PasDrôle.fr";
+const DEFAULT_TITLE = "PasDrôle.fr — Le classement des humoristes par le public";
+const DEFAULT_DESCRIPTION = "Notez et classez vos humoristes préférés sur l'écriture, le jeu de scène, l'originalité et la présence scénique. Le classement des humoristes établi par le public.";
+const DEFAULT_IMAGE = () => `${window.location.origin}/logo-mike.png`;
+
+function upsertMeta(attr, key, content) {
+  if (!content) return;
+  let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+  if (!el) {
+    el = document.createElement("meta");
+    el.setAttribute(attr, key);
+    document.head.appendChild(el);
+  }
+  el.setAttribute("content", content);
+}
+// Met à jour le titre d'onglet + la meta description + les balises Open Graph (aperçu de lien
+// sur WhatsApp/Facebook/X/etc.). À appeler à chaque changement de page/fiche.
+function applySEO({ title, description, image, url } = {}) {
+  const t = title || DEFAULT_TITLE;
+  const d = (description || DEFAULT_DESCRIPTION).slice(0, 160);
+  document.title = t;
+  upsertMeta("name", "description", d);
+  upsertMeta("property", "og:site_name", SITE_NAME);
+  upsertMeta("property", "og:type", "website");
+  upsertMeta("property", "og:title", t);
+  upsertMeta("property", "og:description", d);
+  upsertMeta("property", "og:image", image || DEFAULT_IMAGE());
+  upsertMeta("property", "og:url", url || window.location.href);
+  upsertMeta("name", "twitter:card", "summary_large_image");
+}
+// Injecte/retire un bloc de données structurées schema.org (JSON-LD) — permet à Google
+// d'afficher directement la note ⭐ dans les résultats de recherche pour une fiche humoriste.
+function setJSONLD(id, data) {
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement("script");
+    el.type = "application/ld+json";
+    el.id = id;
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+}
+function removeJSONLD(id) {
+  document.getElementById(id)?.remove();
+}
+
 const AVATAR_GRADIENTS = [
   ["#F0B429", "#C4402F"], ["#6C63C9", "#332C6B"], ["#3D9E7C", "#1A4636"], ["#D9695A", "#732A20"],
   ["#4A90B8", "#1C4256"], ["#B87FC9", "#54326B"], ["#E0A03F", "#7A4A1A"], ["#5FA8D3", "#264A63"],
@@ -580,12 +627,14 @@ function GenrePage({ genre, comicsWithStats, onOpen }) {
     ),
     [comicsWithStats, genre]
   );
-  // Petit plus SEO/UX : le titre d'onglet reflète le genre consulté, remis à zéro en quittant la page.
   useEffect(() => {
-    const prev = document.title;
-    document.title = `Humoristes ${genre || ""} — PasDrôle.fr`;
-    return () => { document.title = prev; };
-  }, [genre]);
+    applySEO({
+      title: `Humoristes ${genre || ""} — Classement | ${SITE_NAME}`,
+      description: `Découvrez tous les humoristes de type ${genre || ""} notés par le public sur ${SITE_NAME} : ${list.slice(0, 6).map((c) => c.nom).join(", ")}.`,
+      url: `${window.location.origin}/genre/${slugifyGenre(genre)}`,
+    });
+    return () => applySEO();
+  }, [genre, list]);
   return <ComicGrid comicsWithStats={list} onOpen={onOpen} title={`GENRE · ${(genre || "").toUpperCase()}`} />;
 }
 
@@ -669,6 +718,12 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
       const c = await api.fetchComicById(comicId);
       setComic(c);
       setLoading(false); // la fiche peut s'afficher dès qu'on a l'humoriste
+      applySEO({
+        title: `${c.nom} — Notes et avis | ${SITE_NAME}`,
+        description: c.bio || `Découvrez les notes et avis du public sur ${c.nom}, humoriste ${c.pays || ""}.`,
+        image: c.photo_url,
+        url: `${window.location.origin}/${c.slug}`,
+      });
 
       const [r, rv, vids] = await Promise.allSettled([
         api.fetchRatingsForComic(comicId),
@@ -681,6 +736,36 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
       if (r.status === "rejected") console.error("Erreur notes:", r.reason);
       if (rv.status === "rejected") console.error("Erreur avis:", rv.reason);
       if (vids.status === "rejected") console.error("Erreur vidéos:", vids.reason);
+
+      // Une fois les notes connues, on affine le titre et on publie les données structurées
+      // (schema.org Person + AggregateRating) pour que Google puisse afficher la note ⭐ directement.
+      if (r.status === "fulfilled" && r.value.length > 0) {
+        const { avg10: a, votes: v } = overallAvg(r.value);
+        applySEO({
+          title: `${c.nom} — Noté ${a.toFixed(1).replace(".", ",")}/10 par le public | ${SITE_NAME}`,
+          description: c.bio || `Découvrez les notes et avis du public sur ${c.nom}, humoriste ${c.pays || ""}.`,
+          image: c.photo_url,
+          url: `${window.location.origin}/${c.slug}`,
+        });
+        setJSONLD("jsonld-comic", {
+          "@context": "https://schema.org",
+          "@type": "Person",
+          "name": c.nom,
+          "image": c.photo_url || undefined,
+          "url": `${window.location.origin}/${c.slug}`,
+          "jobTitle": "Humoriste",
+          "nationality": c.pays || undefined,
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": a.toFixed(1),
+            "bestRating": "10",
+            "worstRating": "0",
+            "ratingCount": v,
+          },
+        });
+      } else {
+        removeJSONLD("jsonld-comic");
+      }
 
       if (user) {
         const [mr, mrv] = await Promise.allSettled([
@@ -704,6 +789,11 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   }, [comicId, user]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Remet le titre/meta par défaut et retire les données structurées en quittant la fiche.
+  useEffect(() => {
+    return () => { removeJSONLD("jsonld-comic"); applySEO(); };
+  }, [comicId]);
 
   const { avg10, votes } = overallAvg(ratings);
   const per = perCriteriaAvg(ratings);
@@ -983,6 +1073,16 @@ function MatchPage({ comicA, comicB, matchSlug, onNewMatch }) {
   const [myPick, setMyPick] = useState(null); // id de l'humoriste choisi par ce visiteur
   const [copied, setCopied] = useState(false);
   const storageKey = `match_voted:${matchSlug}`;
+
+  useEffect(() => {
+    applySEO({
+      title: `${comicA.nom} vs ${comicB.nom} — Qui l'emporte ? | ${SITE_NAME}`,
+      description: `${comicA.nom} ou ${comicB.nom} ? Vote pour ton humoriste préféré dans ce duel sur ${SITE_NAME}.`,
+      image: comicA.photo_url || comicB.photo_url,
+      url: `${window.location.origin}/match/${matchSlug}`,
+    });
+    return () => applySEO();
+  }, [comicA, comicB, matchSlug]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1781,6 +1881,15 @@ export default function App() {
   const filtered = useMemo(() => query.trim() ? comicsWithStats.filter((c) => c.nom.toLowerCase().includes(query.toLowerCase())) : comicsWithStats, [comicsWithStats, query]);
 
   const logout = async () => { await supabase.auth.signOut(); goToPage("home"); };
+
+  // SEO des pages "statiques" (celles qui n'ont pas leur propre logique de titre/meta comme
+  // ComicDetail, GenrePage ou MatchPage, qui gèrent ça elles-mêmes).
+  useEffect(() => {
+    if (nav.page === "home") applySEO();
+    else if (nav.page === "ranking") applySEO({ title: `Classement complet des humoristes | ${SITE_NAME}`, description: "Le classement complet de tous les humoristes notés par le public, du mieux noté au moins bien noté.", url: `${window.location.origin}/classements` });
+    else if (nav.page === "comics") applySEO({ title: `Tous les humoristes | ${SITE_NAME}`, description: "Parcourez la liste complète des humoristes référencés sur PasDrôle.fr.", url: `${window.location.origin}/humoristes` });
+    else if (nav.page === "contact") applySEO({ title: `Contact | ${SITE_NAME}`, url: `${window.location.origin}/contact` });
+  }, [nav.page]);
 
   if (loading) {
     return <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
