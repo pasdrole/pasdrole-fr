@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
-  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2,
+  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull,
 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
 import { supabase } from "./supabaseClient";
@@ -886,6 +886,75 @@ function MatchCTA({ onLaunch }) {
     </section>
   );
 }
+function StatBox({ icon, label, comic, count, accent }) {
+  return (
+    <div style={{ flex: "1 1 220px", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, background: `${accent}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {icon}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
+        {comic ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <PhotoPlaceholder size={26} label={comic.nom} imgSrc={comic.photo_url} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: C.text, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{comic.nom}</div>
+              <div style={{ fontSize: 11, color: accent }}>{count} duel{count !== 1 ? "s" : ""}</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12.5, color: C.dim2 }}>Pas encore de duels</div>
+        )}
+      </div>
+    </div>
+  );
+}
+function MatchLeaderboard({ comics }) {
+  const [votes, setVotes] = useState(null);
+
+  useEffect(() => {
+    api.fetchAllMatchVotes().then(setVotes).catch((e) => { console.error("Erreur stats duels:", e); setVotes([]); });
+  }, []);
+
+  const stats = useMemo(() => {
+    if (!votes) return null;
+    const comicById = Object.fromEntries(comics.map((c) => [c.id, c]));
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const tally = (rows) => {
+      const wins = {}, losses = {};
+      rows.forEach((v) => {
+        const loserId = v.winner_id === v.comic_a_id ? v.comic_b_id : v.comic_a_id;
+        wins[v.winner_id] = (wins[v.winner_id] || 0) + 1;
+        losses[loserId] = (losses[loserId] || 0) + 1;
+      });
+      const top = (obj) => {
+        const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
+        if (!entries.length) return null;
+        const [id, count] = entries[0];
+        return comicById[id] ? { comic: comicById[id], count } : null;
+      };
+      return { topWinner: top(wins), topLoser: top(losses) };
+    };
+
+    const allTime = tally(votes);
+    const lastWeek = tally(votes.filter((v) => new Date(v.created_at).getTime() >= weekAgo));
+    return { allTime, lastWeek };
+  }, [votes, comics]);
+
+  if (!stats) return null;
+
+  return (
+    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "18px 24px 0" }}>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <StatBox icon={<Crown size={16} color={C.gold} />} label="Plus grand vainqueur" comic={stats.allTime.topWinner?.comic} count={stats.allTime.topWinner?.count} accent={C.gold} />
+        <StatBox icon={<Skull size={16} color={C.red} />} label="Plus grand loser" comic={stats.allTime.topLoser?.comic} count={stats.allTime.topLoser?.count} accent={C.red} />
+        <StatBox icon={<TrendingUp size={16} color={C.green} />} label="Vainqueur de la semaine" comic={stats.lastWeek.topWinner?.comic} count={stats.lastWeek.topWinner?.count} accent={C.green} />
+        <StatBox icon={<TrendingDown size={16} color={C.red} />} label="Loser de la semaine" comic={stats.lastWeek.topLoser?.comic} count={stats.lastWeek.topLoser?.count} accent={C.red} />
+      </div>
+    </section>
+  );
+}
 function MatchFighterCard({ comic, picked, isWinner, pct, disabled, onPick }) {
   return (
     <button onClick={onPick} disabled={disabled} style={{
@@ -1181,6 +1250,95 @@ function VideoSearchModal({ comic, onClose }) {
   );
 }
 
+function EditComicModal({ comic, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    nom: comic.nom || "", pays: comic.pays || "", debut: comic.debut || "",
+    genres: comic.genres || "", bio: comic.bio || "",
+    spectaclesRaw: (comic.spectacles || []).join(", "),
+    date_naissance: comic.date_naissance || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const toggleGenre = (g) => {
+    const current = (form.genres || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const next = current.includes(g) ? current.filter((x) => x !== g) : [...current, g];
+    setForm({ ...form, genres: next.join(", ") });
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setErr("");
+    try {
+      await api.updateComic(comic.id, {
+        nom: form.nom.trim(), pays: form.pays, debut: form.debut, genres: form.genres, bio: form.bio,
+        date_naissance: form.date_naissance || null,
+        spectacles: form.spectaclesRaw.split(",").map((s) => s.trim()).filter(Boolean),
+      });
+      await onSaved();
+      onClose();
+    } catch (e) {
+      setErr(e.message || "Erreur lors de l'enregistrement.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, maxWidth: 560, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 26 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: C.text, margin: 0 }}>MODIFIER — {comic.nom}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={20} color={C.dim} /></button>
+        </div>
+
+        {["nom", "pays", "debut"].map((k) => (
+          <input key={k} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={k}
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, marginBottom: 10 }} />
+        ))}
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Date de naissance</div>
+          <input type="date" value={form.date_naissance || ""} onChange={(e) => setForm({ ...form, date_naissance: e.target.value })}
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 6 }}>Genres (clique pour ajouter/retirer)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {GENRE_OPTIONS.map((g) => {
+              const selected = (form.genres || "").split(",").map((s) => s.trim()).includes(g);
+              return (
+                <button key={g} type="button" onClick={() => toggleGenre(g)} style={{
+                  fontSize: 11.5, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+                  border: `1px solid ${selected ? C.gold : C.border}`,
+                  background: selected ? "rgba(240,180,41,0.15)" : "transparent",
+                  color: selected ? C.gold : C.dim,
+                }}>{g}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Spectacles (séparés par des virgules)</div>
+          <input value={form.spectaclesRaw} onChange={(e) => setForm({ ...form, spectaclesRaw: e.target.value })}
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Bio</div>
+          <textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={4}
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical" }} />
+        </div>
+
+        {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
+        <GoldButton full disabled={saving} onClick={save}>{saving ? "Enregistrement..." : "Enregistrer"}</GoldButton>
+      </div>
+    </div>
+  );
+}
+
 function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [comics, setComics] = useState([]);
   const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
@@ -1189,6 +1347,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [birthDatesResult, setBirthDatesResult] = useState(null);
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
   const [videoSearchComic, setVideoSearchComic] = useState(null);
+  const [editComic, setEditComic] = useState(null);
   const [adminTab, setAdminTab] = useState("humoristes");
   const [sortAlpha, setSortAlpha] = useState(false);
   const [pendingReviews, setPendingReviews] = useState([]);
@@ -1462,6 +1621,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
                 <button onClick={() => toggleStatus(c)} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, padding: "5px 10px", borderRadius: 20, background: c.status === "draft" ? "rgba(154,147,166,0.15)" : "rgba(63,184,120,0.15)", color: c.status === "draft" ? C.dim : C.green, border: "none", cursor: "pointer" }}>
                   {c.status === "draft" ? <EyeOff size={11} /> : <Eye size={11} />} {c.status === "draft" ? "Brouillon" : "Publié"}
                 </button>
+                <button onClick={() => setEditComic(c)} title="Modifier la fiche" style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer" }}><Pencil size={15} color={C.dim2} /></button>
                 <button onClick={() => setVideoSearchComic(c)} style={{ fontSize: 10.5, padding: "5px 10px", borderRadius: 20, background: "rgba(240,180,41,0.12)", color: C.gold, border: "none", cursor: "pointer" }}>
                   Vidéos
                 </button>
@@ -1473,6 +1633,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
       </div>
       )}
       {videoSearchComic && <VideoSearchModal comic={videoSearchComic} onClose={() => setVideoSearchComic(null)} />}
+      {editComic && <EditComicModal comic={editComic} onClose={() => setEditComic(null)} onSaved={async () => { await load(); onRefreshPublic(); }} />}
     </div>
   );
 }
@@ -1638,6 +1799,7 @@ export default function App() {
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={5} title="TOP 5 DU MOMENT" />
           <MatchCTA onLaunch={openRandomMatch} />
+          <MatchLeaderboard comics={comics} />
           <LatestReviews onOpen={openComic} />
         </>
       )}
