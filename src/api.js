@@ -1,14 +1,5 @@
 import { supabase } from "./supabaseClient";
 
-export const CRITERIA = [
-  { key: "ecriture", label: "Écriture" },
-  { key: "jeu_de_scene", label: "Jeu de scène" },
-  { key: "originalite", label: "Originalité" },
-  { key: "presence", label: "Présence scénique" },
-  { key: "interaction", label: "Interaction public" },
-  { key: "regularite", label: "Régularité" },
-];
-
 function slugify(nom) {
   return nom.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
@@ -137,28 +128,85 @@ export async function uploadComicPhoto(comicId, file) {
   return data.publicUrl;
 }
 
+// ---------- Catégories & critères ----------
+export async function fetchCategories() {
+  const { data, error } = await supabase.from("categories").select("*").order("priority");
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchCriteriaByCategory(categoryId) {
+  const { data, error } = await supabase.from("criteria").select("*").eq("category_id", categoryId).order("display_order");
+  if (error) throw error;
+  return data;
+}
+
+// Catégorie primaire d'un comic (celle avec la priorité la plus basse parmi ses tags).
+// Retourne null si le comic n'a encore aucune catégorie assignée.
+export async function fetchComicCategory(comicId) {
+  const { data, error } = await supabase.from("comic_primary_category").select("*").eq("comic_id", comicId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Select simple côté admin : remplace toute(s) catégorie(s) existante(s) du comic par une seule.
+export async function setComicCategory(comicId, categoryId) {
+  const { error: delErr } = await supabase.from("comic_categories").delete().eq("comic_id", comicId);
+  if (delErr) throw delErr;
+  if (!categoryId) return;
+  const { error } = await supabase.from("comic_categories").insert({ comic_id: comicId, category_id: categoryId });
+  if (error) throw error;
+}
+
 // ---------- Notes ----------
+// Chaque ligne "ratings" porte déjà score_global (moyenne calculée par trigger côté DB).
+// rating_scores(score, criteria(slug,label)) permet d'afficher le détail par critère
+// (radar chart, relecture du formulaire) sans requête supplémentaire.
 export async function fetchRatingsForComic(comicId) {
-  const { data, error } = await supabase.from("ratings").select("*").eq("comic_id", comicId);
+  const { data, error } = await supabase
+    .from("ratings")
+    .select("*, rating_scores(criteria_id, score, criteria(slug,label))")
+    .eq("comic_id", comicId);
   if (error) throw error;
   return data;
 }
 
 export async function fetchMyRating(comicId, userId) {
-  const { data, error } = await supabase.from("ratings").select("*").eq("comic_id", comicId).eq("user_id", userId).maybeSingle();
+  const { data, error } = await supabase
+    .from("ratings")
+    .select("*, rating_scores(criteria_id, score, criteria(slug,label))")
+    .eq("comic_id", comicId)
+    .eq("user_id", userId)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
 
-// "Upsert" = crée la note si elle n'existe pas, la met à jour sinon.
-// Combiné à la contrainte unique(comic_id, user_id) posée dans le schéma SQL,
-// ça garantit qu'un compte n'a jamais plus d'une note par humoriste.
-export async function upsertRating(comicId, userId, values) {
-  const { error } = await supabase.from("ratings").upsert(
-    { comic_id: comicId, user_id: userId, ...values, updated_at: new Date().toISOString() },
-    { onConflict: "comic_id,user_id" }
-  );
+// "Upsert" = crée la note si elle n'existe pas, la met à jour sinon (même logique qu'avant,
+// contrainte unique(comic_id, user_id) sur ratings). categoryId est stocké en snapshot sur la
+// ligne ratings ; criteriaList est la grille utilisée (déjà chargée côté composant) ;
+// scoresBySlug est du type { ecriture: 8, jeu_scene: 7, interaction_public: 9 }.
+export async function upsertRating(comicId, userId, categoryId, criteriaList, scoresBySlug) {
+  const { data: ratingRow, error } = await supabase
+    .from("ratings")
+    .upsert(
+      { comic_id: comicId, user_id: userId, category_id: categoryId, updated_at: new Date().toISOString() },
+      { onConflict: "comic_id,user_id" }
+    )
+    .select()
+    .single();
   if (error) throw error;
+
+  const scoreRows = criteriaList
+    .filter((c) => typeof scoresBySlug[c.slug] === "number")
+    .map((c) => ({ rating_id: ratingRow.id, criteria_id: c.id, score: scoresBySlug[c.slug] }));
+
+  const { error: scoresErr } = await supabase
+    .from("rating_scores")
+    .upsert(scoreRows, { onConflict: "rating_id,criteria_id" });
+  if (scoresErr) throw scoresErr;
+
+  return ratingRow;
 }
 
 // ---------- Avis ----------
