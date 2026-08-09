@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
-  TrendingUp, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
+  TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2,
 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
@@ -350,6 +350,20 @@ function overallAvg(ratings) {
   const vals = Object.values(per).filter((v) => v > 0);
   return { avg10: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0, votes: ratings.length };
 }
+// Tendance récente d'un humoriste : compare sa moyenne actuelle (toutes notes) à sa moyenne
+// telle qu'elle était il y a `days` jours (calculée sur les seules notes déjà présentes à
+// cette date, via leur updated_at). Ne nécessite aucun stockage d'historique supplémentaire.
+// Retourne null si pas assez de recul (humoriste trop récent / toutes les notes sont récentes).
+function trendFor(ratings, days = 7) {
+  if (!ratings || !ratings.length) return null;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const older = ratings.filter((r) => r.updated_at && new Date(r.updated_at).getTime() < cutoff);
+  if (!older.length) return null;
+  const { avg10: currentAvg } = overallAvg(ratings);
+  const { avg10: prevAvg } = overallAvg(older);
+  if (!currentAvg || !prevAvg) return null;
+  return { delta: currentAvg - prevAvg };
+}
 
 /* ---------- Hero / listing ---------- */
 function Hero({ comicsWithStats }) {
@@ -388,15 +402,27 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
       <SectionTitle>{title}</SectionTitle>
-      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 12 }}>
-        {ranked.map((c, i) => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14 }}>
+        {ranked.map((c, i) => {
+          const trend = c.trend;
+          const stable = trend && Math.abs(trend.delta) < 0.05;
+          return (
           <button key={c.id} onClick={() => onOpen(c.id)} style={{
-            flex: "0 0 168px", background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`,
+            background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`,
             border: `1px solid ${i === 0 ? "rgba(240,180,41,0.5)" : C.border}`, borderRadius: 14, padding: "18px 14px", cursor: "pointer", position: "relative", textAlign: "left",
           }}>
             <div style={{ position: "absolute", top: 10, left: 10, width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 800, background: i === 0 ? `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})` : C.panel2, color: i === 0 ? "#1A1509" : C.dim2, border: i === 0 ? "none" : `1px solid ${C.border}` }}>
               {i === 0 ? <Crown size={12} /> : i + 1}
             </div>
+            {trend && (
+              <div title="Évolution sur 7 jours" style={{
+                position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 2,
+                fontSize: 10.5, fontWeight: 700, color: stable ? C.dim2 : trend.delta > 0 ? C.green : C.red,
+              }}>
+                {stable ? <Minus size={11} /> : trend.delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                {!stable && (trend.delta > 0 ? "+" : "") + trend.delta.toFixed(1).replace(".", ",")}
+              </div>
+            )}
             <div style={{ display: "flex", justifyContent: "center", marginTop: 10, marginBottom: 12 }}>
               <PhotoPlaceholder size={58} label={c.nom} imgSrc={c.photo_url} />
             </div>
@@ -404,7 +430,8 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
             <div style={{ textAlign: "center", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? c.avg10.toFixed(1).replace(".", ",") : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
             <div style={{ textAlign: "center", color: C.dim2, fontSize: 10.5 }}>({c.votes})</div>
           </button>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -1344,7 +1371,10 @@ export default function App() {
     setNav({ page });
   }, []);
 
-  const comicsWithStats = useMemo(() => comics.map((c) => ({ ...c, ...overallAvg(ratingsByComic[c.id] || []) })), [comics, ratingsByComic]);
+  const comicsWithStats = useMemo(() => comics.map((c) => {
+    const ratings = ratingsByComic[c.id] || [];
+    return { ...c, ...overallAvg(ratings), trend: trendFor(ratings) };
+  }), [comics, ratingsByComic]);
   const filtered = useMemo(() => query.trim() ? comicsWithStats.filter((c) => c.nom.toLowerCase().includes(query.toLowerCase())) : comicsWithStats, [comicsWithStats, query]);
 
   const logout = async () => { await supabase.auth.signOut(); goToPage("home"); };
@@ -1364,7 +1394,7 @@ export default function App() {
       {nav.page === "home" && (
         <>
           <Hero comicsWithStats={comicsWithStats} />
-          <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={10} />
+          <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={5} title="TOP 5 DU MOMENT" />
           <LatestReviews onOpen={openComic} />
         </>
       )}
