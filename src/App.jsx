@@ -7,7 +7,6 @@ import {
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
 import { supabase } from "./supabaseClient";
 import * as api from "./api";
-import { CRITERIA } from "./api";
 
 const C = {
   bg: "#0B0A0D", panel: "#151318", panel2: "#1B1820", border: "#2A2630", borderHover: "#3B3544",
@@ -442,11 +441,18 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
 }
 
 /* ---------- Rating helpers ---------- */
-function perCriteriaAvg(ratings) {
+// Moyenne par critère (pour le radar chart d'une fiche) — nécessite la grille de critères
+// du comic concerné (dynamique selon sa catégorie), et les ratings avec leur rating_scores
+// imbriqué (voir api.fetchRatingsForComic).
+function perCriteriaAvg(ratings, criteriaList) {
   const out = {};
-  CRITERIA.forEach((c) => {
-    const vals = ratings.map((v) => v[c.key]).filter((v) => typeof v === "number");
-    out[c.key] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  (criteriaList || []).forEach((c) => {
+    const vals = [];
+    (ratings || []).forEach((r) => {
+      const rs = (r.rating_scores || []).find((s) => s.criteria_id === c.id);
+      if (rs && typeof rs.score === "number") vals.push(rs.score);
+    });
+    out[c.slug] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   });
   return out;
 }
@@ -460,10 +466,12 @@ function computeAge(dateNaissance) {
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
   return age;
 }
+// Moyenne générale d'un comic : chaque ligne "ratings" porte déjà score_global
+// (calculé par trigger côté DB à partir des 3 critères de sa catégorie), donc on
+// peut agréger tous les votes d'un comic peu importe leur catégorie/grille.
 function overallAvg(ratings) {
-  const per = perCriteriaAvg(ratings);
-  const vals = Object.values(per).filter((v) => v > 0);
-  return { avg10: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0, votes: ratings.length };
+  const vals = (ratings || []).map((r) => r.score_global).filter((v) => typeof v === "number" && v > 0);
+  return { avg10: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0, votes: (ratings || []).length };
 }
 // Tendance récente d'un humoriste : compare sa moyenne actuelle (toutes notes) à sa moyenne
 // telle qu'elle était il y a `days` jours (calculée sur les seules notes déjà présentes à
@@ -710,6 +718,8 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [videos, setVideos] = useState([]);
+  const [category, setCategory] = useState(null); // { category_id, category_slug, category_label }
+  const [criteria, setCriteria] = useState([]); // grille de critères (3) de la catégorie du comic
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -718,6 +728,19 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
       const c = await api.fetchComicById(comicId);
       setComic(c);
       setLoading(false); // la fiche peut s'afficher dès qu'on a l'humoriste
+
+      // Catégorie + grille de critères de CE comic (nécessaire avant d'afficher le
+      // formulaire de notation et le radar chart, qui sont dynamiques par catégorie).
+      try {
+        const cat = await api.fetchComicCategory(comicId);
+        setCategory(cat);
+        if (cat) setCriteria(await api.fetchCriteriaByCategory(cat.category_id));
+        else setCriteria([]);
+      } catch (e) {
+        console.error("Erreur chargement catégorie/critères:", e);
+        setCategory(null);
+        setCriteria([]);
+      }
       applySEO({
         title: `${c.nom} — Notes et avis | ${SITE_NAME}`,
         description: c.bio || `Découvrez les notes et avis du public sur ${c.nom}, humoriste ${c.pays || ""}.`,
@@ -774,7 +797,11 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
         ]);
         if (mr.status === "fulfilled" && mr.value) {
           setMyRating(mr.value);
-          setDraft(Object.fromEntries(CRITERIA.map((c) => [c.key, mr.value[c.key]])));
+          const scoresBySlug = {};
+          (mr.value.rating_scores || []).forEach((rs) => {
+            if (rs.criteria?.slug) scoresBySlug[rs.criteria.slug] = rs.score;
+          });
+          setDraft(scoresBySlug);
         }
         if (mrv.status === "fulfilled" && mrv.value) {
           setMyReview(mrv.value);
@@ -796,15 +823,16 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   }, [comicId]);
 
   const { avg10, votes } = overallAvg(ratings);
-  const per = perCriteriaAvg(ratings);
-  const radarData = CRITERIA.map((c) => ({ subject: c.label, value: per[c.key] || 0, fullMark: 10 }));
-  const canSubmitRating = CRITERIA.every((c) => typeof draft[c.key] === "number" && draft[c.key] > 0);
+  const per = perCriteriaAvg(ratings, criteria);
+  const radarData = criteria.map((c) => ({ subject: c.label, value: per[c.slug] || 0, fullMark: 10 }));
+  const canSubmitRating = criteria.length > 0 && criteria.every((c) => typeof draft[c.slug] === "number" && draft[c.slug] > 0);
 
   const submitRating = async () => {
     if (!user) return onRequireAuth();
+    if (!category) { alert("Cet humoriste n'a pas encore de catégorie assignée — contacte l'admin."); return; }
     setSaving(true);
     try {
-      await api.upsertRating(comicId, user.id, draft);
+      await api.upsertRating(comicId, user.id, category.category_id, criteria, draft);
       await load();
     } catch (e) {
       console.error("Erreur enregistrement note:", e);
@@ -911,13 +939,17 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
         <div style={{ flex: "0 1 320px", display: "flex", flexDirection: "column", gap: 18 }}>
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
             <SectionTitle>{myRating ? "MODIFIER MA NOTE" : "NOTER CET HUMORISTE"}</SectionTitle>
-            {CRITERIA.map((c) => (
-              <div key={c.key} style={{ marginBottom: 15 }}>
+            {category && <div style={{ fontSize: 11, color: C.dim2, marginBottom: 12 }}>Grille · {category.category_label}</div>}
+            {criteria.length === 0 && (
+              <div style={{ fontSize: 12.5, color: C.dim2, marginBottom: 12 }}>Aucune catégorie assignée pour l'instant — notation indisponible.</div>
+            )}
+            {criteria.map((c) => (
+              <div key={c.id} style={{ marginBottom: 15 }}>
                 <span style={{ fontSize: 13, color: C.text, display: "block", marginBottom: 6 }}>{c.label}</span>
                 <div style={{ display: "flex", gap: 1 }}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                    <button key={n} onClick={() => setDraft({ ...draft, [c.key]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 1, flexShrink: 0 }}>
-                      <MicIcon size={22} filled={(draft[c.key] || 0) >= n} />
+                    <button key={n} onClick={() => setDraft({ ...draft, [c.slug]: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 1, flexShrink: 0 }}>
+                      <MicIcon size={22} filled={(draft[c.slug] || 0) >= n} />
                     </button>
                   ))}
                 </div>
@@ -1356,9 +1388,24 @@ function EditComicModal({ comic, onClose, onSaved }) {
     genres: comic.genres || "", bio: comic.bio || "",
     spectaclesRaw: (comic.spectacles || []).join(", "),
     date_naissance: comic.date_naissance || "",
+    category_id: "",
   });
+  const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+
+  // Charge la liste des catégories + la catégorie actuelle du comic (select pré-rempli).
+  useEffect(() => {
+    (async () => {
+      try {
+        const [cats, current] = await Promise.all([api.fetchCategories(), api.fetchComicCategory(comic.id)]);
+        setCategories(cats);
+        if (current) setForm((f) => ({ ...f, category_id: current.category_id }));
+      } catch (e) {
+        console.error("Erreur chargement catégories:", e);
+      }
+    })();
+  }, [comic.id]);
 
   const toggleGenre = (g) => {
     const current = (form.genres || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -1375,6 +1422,7 @@ function EditComicModal({ comic, onClose, onSaved }) {
         date_naissance: form.date_naissance || null,
         spectacles: form.spectaclesRaw.split(",").map((s) => s.trim()).filter(Boolean),
       });
+      await api.setComicCategory(comic.id, form.category_id || null);
       await onSaved();
       onClose();
     } catch (e) {
@@ -1401,6 +1449,15 @@ function EditComicModal({ comic, onClose, onSaved }) {
           <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Date de naissance</div>
           <input type="date" value={form.date_naissance || ""} onChange={(e) => setForm({ ...form, date_naissance: e.target.value })}
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Catégorie (détermine la grille de notation)</div>
+          <select value={form.category_id || ""} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }}>
+            <option value="">— Non classé —</option>
+            {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+          </select>
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -1441,7 +1498,12 @@ function EditComicModal({ comic, onClose, onSaved }) {
 
 function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [comics, setComics] = useState([]);
-  const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
+  const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "" });
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    api.fetchCategories().then(setCategories).catch((e) => console.error("Erreur chargement catégories:", e));
+  }, []);
   const [bulkRaw, setBulkRaw] = useState("");
   const [birthDatesRaw, setBirthDatesRaw] = useState("");
   const [birthDatesResult, setBirthDatesResult] = useState(null);
@@ -1481,12 +1543,15 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
 
   const quickAdd = async (status) => {
     if (!form.nom.trim()) return;
-    await api.createComic({
+    const created = await api.createComic({
       nom: form.nom.trim(), pays: form.pays, debut: form.debut, genres: form.genres, bio: form.bio,
       date_naissance: form.date_naissance || null,
       spectacles: form.spectaclesRaw.split(",").map((s) => s.trim()).filter(Boolean), status,
     });
-    setForm({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "" });
+    if (form.category_id) {
+      try { await api.setComicCategory(created.id, form.category_id); } catch (e) { console.error("Erreur assignation catégorie:", e); }
+    }
+    setForm({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "" });
     await load(); onRefreshPublic();
   };
 
@@ -1628,6 +1693,14 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
               <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Date de naissance (pour l'âge auto)</div>
               <input type="date" value={form.date_naissance} onChange={(e) => setForm({ ...form, date_naissance: e.target.value })}
                 style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Catégorie (détermine la grille de notation)</div>
+              <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }}>
+                <option value="">— Non classé —</option>
+                {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+              </select>
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: C.dim2, marginBottom: 6 }}>Genres (clique pour sélectionner)</div>
