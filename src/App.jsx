@@ -886,26 +886,26 @@ function MatchCTA({ onLaunch }) {
     </section>
   );
 }
-function StatBox({ icon, label, comic, count, accent }) {
+function StatBox({ icon, label, comic, count, accent, suffix }) {
   return (
-    <div style={{ flex: "1 1 220px", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, display: "flex", alignItems: "center", gap: 14 }}>
-      <div style={{ width: 34, height: 34, borderRadius: 10, background: `${accent}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        {icon}
+    <div style={{ flex: "1 1 220px", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "20px 18px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 10, minHeight: 190 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ width: 26, height: 26, borderRadius: 8, background: `${accent}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {icon}
+        </div>
+        <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase" }}>{label}</div>
       </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
-        {comic ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <PhotoPlaceholder size={26} label={comic.nom} imgSrc={comic.photo_url} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: C.text, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{comic.nom}</div>
-              <div style={{ fontSize: 11, color: accent }}>{count} duel{count !== 1 ? "s" : ""}</div>
-            </div>
+      {comic ? (
+        <>
+          <PhotoPlaceholder size={76} label={comic.nom} imgSrc={comic.photo_url} />
+          <div>
+            <div style={{ fontSize: 15, color: C.text, fontWeight: 700 }}>{comic.nom}</div>
+            <div style={{ fontSize: 12, color: accent, marginTop: 2 }}>{count} duel{count !== 1 ? "s" : ""} {suffix}{count !== 1 ? "s" : ""}</div>
           </div>
-        ) : (
-          <div style={{ fontSize: 12.5, color: C.dim2 }}>Pas encore de duels</div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12.5, color: C.dim2, marginTop: 20 }}>Pas encore de duels</div>
+      )}
     </div>
   );
 }
@@ -947,10 +947,10 @@ function MatchLeaderboard({ comics }) {
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "18px 24px 0" }}>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        <StatBox icon={<Crown size={16} color={C.gold} />} label="Plus grand vainqueur" comic={stats.allTime.topWinner?.comic} count={stats.allTime.topWinner?.count} accent={C.gold} />
-        <StatBox icon={<Skull size={16} color={C.red} />} label="Plus grand loser" comic={stats.allTime.topLoser?.comic} count={stats.allTime.topLoser?.count} accent={C.red} />
-        <StatBox icon={<TrendingUp size={16} color={C.green} />} label="Vainqueur de la semaine" comic={stats.lastWeek.topWinner?.comic} count={stats.lastWeek.topWinner?.count} accent={C.green} />
-        <StatBox icon={<TrendingDown size={16} color={C.red} />} label="Loser de la semaine" comic={stats.lastWeek.topLoser?.comic} count={stats.lastWeek.topLoser?.count} accent={C.red} />
+        <StatBox icon={<Crown size={16} color={C.gold} />} label="Plus grand vainqueur" comic={stats.allTime.topWinner?.comic} count={stats.allTime.topWinner?.count} accent={C.gold} suffix="gagné" />
+        <StatBox icon={<Skull size={16} color={C.red} />} label="Plus grand loser" comic={stats.allTime.topLoser?.comic} count={stats.allTime.topLoser?.count} accent={C.red} suffix="perdu" />
+        <StatBox icon={<TrendingUp size={16} color={C.green} />} label="Vainqueur de la semaine" comic={stats.lastWeek.topWinner?.comic} count={stats.lastWeek.topWinner?.count} accent={C.green} suffix="gagné" />
+        <StatBox icon={<TrendingDown size={16} color={C.red} />} label="Loser de la semaine" comic={stats.lastWeek.topLoser?.comic} count={stats.lastWeek.topLoser?.count} accent={C.red} suffix="perdu" />
       </div>
     </section>
   );
