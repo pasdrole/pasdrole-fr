@@ -23,7 +23,7 @@ const GENRE_OPTIONS = [
   "Autodérision", "Storytelling", "Chronique", "Cynisme", "Provocation",
   "Observation", "Société", "Politique", "Introspection", "Féminisme",
   "Digital", "One-man-show", "Duo", "Jeu de mots", "Poésie", "Ironie",
-  "Physique", "Franc-parler", "Punchlines", "Acteur",
+  "Physique", "Franc-parler", "Punchlines", "Acteur", "Créateur de contenu",
 ];
 
 // Correspondances pour retrouver le pays à partir d'un code court (FR, BE...) éventuellement stocké en base.
