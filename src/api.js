@@ -333,6 +333,25 @@ export async function upsertVideoRating(videoId, userId, rating) {
   if (error) throw error;
 }
 
+// ---------- Mode Match (duels) ----------
+// Récupère les votes déjà enregistrés pour un duel précis (comicAId/comicBId doivent être
+// passés dans un ordre cohérent — voir orderMatchPair côté App.jsx — pour que tous les votes
+// d'un même duel, peu importe qui a initié le duel, retombent sur la même paire en base.
+export async function fetchMatchVotes(comicAId, comicBId) {
+  const { data, error } = await supabase
+    .from("match_votes")
+    .select("winner_id")
+    .eq("comic_a_id", comicAId)
+    .eq("comic_b_id", comicBId);
+  if (error) throw error;
+  return data;
+}
+
+export async function submitMatchVote(comicAId, comicBId, winnerId) {
+  const { error } = await supabase.from("match_votes").insert({ comic_a_id: comicAId, comic_b_id: comicBId, winner_id: winnerId });
+  if (error) throw error;
+}
+
 // ---------- "Mes avis" — tout ce qu'un compte a noté/commenté ----------
 export async function fetchMyActivity(userId) {
   const [{ data: ratings, error: e1 }, { data: reviews, error: e2 }] = await Promise.all([
