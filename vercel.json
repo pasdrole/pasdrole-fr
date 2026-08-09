@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "https://gltyvhjhormviwkpjrkw.supabase.co/functions/v1/super-worker" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
