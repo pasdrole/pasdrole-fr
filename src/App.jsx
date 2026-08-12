@@ -1224,6 +1224,144 @@ function MyActivityPage({ user, profile, onOpenComic }) {
 }
 
 /* ---------- Admin ---------- */
+/* ---------- Onglet Admin : validation des liens sociaux ---------- */
+const SOCIAL_PLATFORM_LABELS = {
+  instagram: "Instagram", twitch: "Twitch", youtube: "YouTube", tiktok: "TikTok",
+  twitter: "X / Twitter", allocine: "AlloCiné", imdb: "IMDb", wikipedia: "Wikipédia",
+  website: "Site officiel", spotify: "Spotify", facebook: "Facebook", ticketing: "Billetterie",
+};
+const SOCIAL_CONFIDENCE_LABELS = {
+  certain: { label: "Certain", color: C.green },
+  probable: { label: "Probable", color: C.gold },
+  incertain: { label: "Incertain", color: C.red },
+};
+function formatFollowerCount(count) {
+  if (count === null || count === undefined) return "—";
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1).replace(".0", "").replace(".", ",")} M`;
+  if (count >= 1_000) return `${Math.round(count / 1000)} K`;
+  return String(count);
+}
+function SocialLinksTab() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editUrl, setEditUrl] = useState("");
+  const [busyIds, setBusyIds] = useState(new Set());
+  const [platformFilter, setPlatformFilter] = useState("all");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    const { data, error: fetchError } = await supabase
+      .from("social_links")
+      .select("id, platform, url, follower_count, confidence, created_at, comedian_id, comics(nom)")
+      .eq("verification_status", "pending")
+      .order("created_at", { ascending: true });
+    if (fetchError) setError(fetchError.message);
+    else setRows(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setBusy = (id, isBusy) => setBusyIds((prev) => {
+    const next = new Set(prev);
+    if (isBusy) next.add(id); else next.delete(id);
+    return next;
+  });
+
+  const decide = async (id, status) => {
+    setBusy(id, true);
+    const { error: updateError } = await supabase.from("social_links").update({ verification_status: status }).eq("id", id);
+    if (updateError) { setError(updateError.message); setBusy(id, false); return; }
+    setRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const startEdit = (row) => { setEditingId(row.id); setEditUrl(row.url || ""); };
+  const cancelEdit = () => { setEditingId(null); setEditUrl(""); };
+  const saveEdit = async (id) => {
+    setBusy(id, true);
+    const { error: updateError } = await supabase.from("social_links").update({ url: editUrl.trim() }).eq("id", id);
+    if (updateError) { setError(updateError.message); setBusy(id, false); return; }
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, url: editUrl.trim() } : r)));
+    setBusy(id, false);
+    cancelEdit();
+  };
+
+  const visibleRows = platformFilter === "all" ? rows : rows.filter((r) => r.platform === platformFilter);
+  const platformCounts = rows.reduce((acc, r) => { acc[r.platform] = (acc[r.platform] || 0) + 1; return acc; }, {});
+
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 820 }}>
+      <SectionTitle right={<span style={{ fontSize: 12, color: C.dim2 }}>{rows.length} en attente</span>}>LIENS SOCIAUX À VALIDER</SectionTitle>
+
+      {error && <div style={{ color: C.red, fontSize: 12.5, marginBottom: 14 }}>{error}</div>}
+
+      {rows.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
+          <button onClick={() => setPlatformFilter("all")} style={{
+            fontSize: 11.5, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+            border: `1px solid ${platformFilter === "all" ? C.gold : C.border}`,
+            background: platformFilter === "all" ? "rgba(240,180,41,0.15)" : "transparent",
+            color: platformFilter === "all" ? C.gold : C.dim,
+          }}>Tous ({rows.length})</button>
+          {Object.entries(platformCounts).map(([platform, count]) => (
+            <button key={platform} onClick={() => setPlatformFilter(platform)} style={{
+              fontSize: 11.5, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+              border: `1px solid ${platformFilter === platform ? C.gold : C.border}`,
+              background: platformFilter === platform ? "rgba(240,180,41,0.15)" : "transparent",
+              color: platformFilter === platform ? C.gold : C.dim,
+            }}>{SOCIAL_PLATFORM_LABELS[platform] || platform} ({count})</button>
+          ))}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ color: C.dim2, fontSize: 13, textAlign: "center", padding: "40px 0" }}>Chargement...</div>
+      ) : visibleRows.length === 0 ? (
+        <div style={{ color: C.dim2, fontSize: 13, textAlign: "center", padding: "40px 0" }}>
+          {rows.length === 0 ? "Rien à valider pour le moment." : "Aucun résultat pour ce filtre."}
+        </div>
+      ) : (
+        visibleRows.map((row) => {
+          const isBusy = busyIds.has(row.id);
+          const conf = SOCIAL_CONFIDENCE_LABELS[row.confidence] || SOCIAL_CONFIDENCE_LABELS.probable;
+          const isEditing = editingId === row.id;
+          return (
+            <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 4px", borderBottom: `1px solid ${C.border}`, opacity: isBusy ? 0.5 : 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, color: C.text, fontWeight: 600, marginBottom: 4 }}>{row.comics?.nom || "Nom inconnu"}</div>
+                {isEditing ? (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} autoFocus
+                      style={{ flex: 1, boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12.5 }} />
+                    <button onClick={() => saveEdit(row.id)} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>OK</button>
+                    <button onClick={cancelEdit} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Annuler</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: C.dim2 }}>
+                    <span style={{ color: C.dim }}>{SOCIAL_PLATFORM_LABELS[row.platform] || row.platform}</span>
+                    <a href={row.url} target="_blank" rel="noreferrer" style={{ color: C.gold, textDecoration: "none", wordBreak: "break-all" }}>{row.url}</a>
+                    <span>{formatFollowerCount(row.follower_count)} abonnés</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: conf.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{conf.label}</span>
+                  </div>
+                )}
+              </div>
+              {!isEditing && (
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => decide(row.id, "verified")} disabled={isBusy} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(63,184,120,0.15)", color: C.green, border: "none", cursor: "pointer" }}>Valider</button>
+                  <button onClick={() => startEdit(row)} disabled={isBusy} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(154,147,166,0.15)", color: C.dim, border: "none", cursor: "pointer" }}>Corriger</button>
+                  <button onClick={() => decide(row.id, "rejected")} disabled={isBusy} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 20, background: "rgba(224,87,74,0.15)", color: C.red, border: "none", cursor: "pointer" }}>Rejeter</button>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
 /* ---------- Recherche vidéos YouTube (admin) ---------- */
 /* ---------- Contact ---------- */
 function ContactPage() {
@@ -1513,11 +1651,23 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [adminTab, setAdminTab] = useState("humoristes");
   const [sortAlpha, setSortAlpha] = useState(false);
   const [pendingReviews, setPendingReviews] = useState([]);
+  const [pendingSocialCount, setPendingSocialCount] = useState(0);
 
   const loadPendingReviews = useCallback(async () => {
     try { setPendingReviews(await api.fetchPendingReviews()); } catch (e) { console.error(e); }
   }, []);
   useEffect(() => { loadPendingReviews(); }, [loadPendingReviews]);
+
+  // Compte les liens sociaux en attente pour le badge de l'onglet (indépendant du composant
+  // SocialLinksTab, qui ne monte que quand cet onglet est actif).
+  useEffect(() => {
+    supabase
+      .from("social_links")
+      .select("id", { count: "exact", head: true })
+      .eq("verification_status", "pending")
+      .then(({ count }) => setPendingSocialCount(count || 0))
+      .catch((e) => console.error("Erreur comptage liens sociaux:", e));
+  }, [adminTab]);
 
   const moderateReview = async (id, status) => {
     await api.updateReviewStatus(id, status);
@@ -1660,6 +1810,11 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
           background: adminTab === "avis" ? C.gold : C.panel2, color: adminTab === "avis" ? "#1A1509" : C.dim,
           fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6,
         }}>AVIS {pendingReviews.length > 0 && <span style={{ background: adminTab === "avis" ? "#1A1509" : C.red, color: adminTab === "avis" ? C.gold : "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10.5 }}>{pendingReviews.length}</span>}</button>
+        <button onClick={() => setAdminTab("liens")} style={{
+          fontSize: 12.5, padding: "8px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+          background: adminTab === "liens" ? C.gold : C.panel2, color: adminTab === "liens" ? "#1A1509" : C.dim,
+          fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6,
+        }}>LIENS SOCIAUX {pendingSocialCount > 0 && <span style={{ background: adminTab === "liens" ? "#1A1509" : C.red, color: adminTab === "liens" ? C.gold : "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10.5 }}>{pendingSocialCount}</span>}</button>
       </div>
 
       {adminTab === "avis" ? (
@@ -1680,6 +1835,8 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
             </div>
           ))}
         </div>
+      ) : adminTab === "liens" ? (
+        <SocialLinksTab />
       ) : (
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
