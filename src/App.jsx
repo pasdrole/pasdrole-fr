@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
-  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull,
+  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe,
 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
 import { supabase } from "./supabaseClient";
@@ -706,6 +706,158 @@ function VideoBlock({ video, user, onRequireAuth }) {
   );
 }
 
+/* ---------- Réseaux sociaux (fiche publique) ---------- */
+// Icônes de marque en SVG (couleurs officielles) — pas de dépendance externe, se fond
+// dans le thème sombre. Chaque icône reste reconnaissable même en petite taille.
+const SOCIAL_ICON_DEFS = {
+  instagram: {
+    label: "Instagram",
+    gradient: "linear-gradient(135deg, #f9ce34, #ee2a7b, #6228d7)",
+    svg: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="18" height="18" rx="5" stroke="#fff" strokeWidth="1.8" />
+        <circle cx="12" cy="12" r="4.2" stroke="#fff" strokeWidth="1.8" />
+        <circle cx="17.2" cy="6.8" r="1.1" fill="#fff" />
+      </svg>
+    ),
+  },
+  youtube: {
+    label: "YouTube",
+    gradient: "linear-gradient(135deg, #ff4e50, #cc1f2b)",
+    svg: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <rect x="2.5" y="5.5" width="19" height="13" rx="4" stroke="#fff" strokeWidth="1.8" />
+        <path d="M10 9.2v5.6l5-2.8-5-2.8Z" fill="#fff" />
+      </svg>
+    ),
+  },
+  twitch: {
+    label: "Twitch",
+    gradient: "linear-gradient(135deg, #9b6cff, #6339c9)",
+    svg: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M5 3 3.5 6.8v12.7h4.3V22l3.4-2.5h3L19.8 14V3H5Z" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
+        <line x1="13.3" y1="6.8" x2="13.3" y2="11.8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="9.3" y1="6.8" x2="9.3" y2="11.8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  tiktok: {
+    label: "TikTok",
+    gradient: "linear-gradient(135deg, #25f4ee, #111, #fe2c55)",
+    svg: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M14 3c.4 2.2 1.9 3.7 4.2 3.9v3c-1.5.1-2.9-.4-4.2-1.3v6.7a5.3 5.3 0 1 1-5.3-5.3c.3 0 .6 0 .9.1v3.1a2.3 2.3 0 1 0 1.6 2.1V3H14Z" stroke="#fff" strokeWidth="1.3" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  twitter: {
+    label: "X",
+    gradient: "linear-gradient(135deg, #333, #000)",
+    svg: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M4 4l16 16M20 4 4 20" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  allocine: {
+    label: "AlloCiné",
+    gradient: "linear-gradient(135deg, #ffcc00, #e6a800)",
+    svg: <Star size={15} fill="#fff" stroke="#fff" />,
+  },
+  wikipedia: {
+    label: "Wikipédia",
+    gradient: "linear-gradient(135deg, #4a4a4a, #1a1a1a)",
+    svg: <span style={{ fontFamily: "serif", fontWeight: 700, fontSize: 13, color: "#fff" }}>W</span>,
+  },
+  website: { label: "Site officiel", gradient: `linear-gradient(135deg, ${C.goldSoft}, ${C.gold})`, svg: <Globe size={15} color="#1A1509" /> },
+  spotify: {
+    label: "Spotify",
+    gradient: "linear-gradient(135deg, #2ee06a, #1a9e46)",
+    svg: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9.2" stroke="#fff" strokeWidth="1.6" />
+        <path d="M7 10.2c3-.9 7-.6 9.2.9M7.4 13c2.5-.7 5.6-.5 7.6.7M7.8 15.7c2-.5 4.4-.4 6 .5" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  facebook: {
+    label: "Facebook",
+    gradient: "linear-gradient(135deg, #4a7ce0, #2952a3)",
+    svg: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M14 22v-8h2.7l.4-3.4H14V8.4c0-1 .3-1.6 1.7-1.6H17V3.8c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1v2.8H8v3.4h2.6V22H14Z" fill="#fff" />
+      </svg>
+    ),
+  },
+  ticketing: { label: "Billetterie", gradient: `linear-gradient(135deg, ${C.goldSoft}, ${C.gold})`, svg: <ExternalLink size={14} color="#1A1509" /> },
+  imdb: { label: "IMDb", gradient: "linear-gradient(135deg, #f5c518, #d4a800)", svg: <span style={{ fontWeight: 800, fontSize: 10, color: "#000" }}>IMDb</span> },
+};
+function formatFollowerCountPublic(count) {
+  if (!count) return null;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1).replace(".0", "").replace(".", ",")} M`;
+  if (count >= 1_000) return `${Math.round(count / 1000)} K`;
+  return String(count);
+}
+function SocialLinksRow({ comicId }) {
+  const [links, setLinks] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("social_links")
+      .select("id, platform, url, follower_count")
+      .eq("comedian_id", comicId)
+      .eq("verification_status", "verified")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) console.error("Erreur chargement liens sociaux:", error);
+        setLinks(data || []);
+        setLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [comicId]);
+
+  if (!loaded || links.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
+      {links.map((link) => {
+        const def = SOCIAL_ICON_DEFS[link.platform] || { label: link.platform, gradient: C.panel2, svg: <ExternalLink size={14} color="#fff" /> };
+        const followers = formatFollowerCountPublic(link.follower_count);
+        return (
+          <a
+            key={link.id}
+            href={link.url}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 9, textDecoration: "none",
+              background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 30,
+              padding: "6px 14px 6px 6px", transition: "transform 0.15s, border-color 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = C.borderHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.borderColor = C.border; }}
+          >
+            <span style={{
+              width: 30, height: 30, borderRadius: "50%", background: def.gradient,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              boxShadow: "0 2px 8px -2px rgba(0,0,0,0.5)",
+            }}>
+              {def.svg}
+            </span>
+            <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+              <span style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>{def.label}</span>
+              {followers && <span style={{ fontSize: 10.5, color: C.dim2 }}>{followers} abonnés</span>}
+            </span>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [comic, setComic] = useState(null);
   const [ratings, setRatings] = useState([]);
@@ -895,6 +1047,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
             </div>
             <p style={{ color: C.dim, fontSize: 14, lineHeight: 1.7, marginBottom: 14 }}>{comic.bio}</p>
             {comic.spectacles?.length > 0 && <div style={{ fontSize: 13, color: C.dim2, marginBottom: 10 }}><strong style={{ color: C.text }}>Spectacles :</strong> {comic.spectacles.join(", ")}</div>}
+            <SocialLinksRow comicId={comicId} />
 
             {votes > 0 ? (
               <div style={{ marginTop: 22, height: 260 }}>
