@@ -1684,6 +1684,21 @@ function EditComicModal({ comic, onClose, onSaved }) {
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [socialLinks, setSocialLinks] = useState([]);
+  const [newPlatform, setNewPlatform] = useState("instagram");
+  const [newUrl, setNewUrl] = useState("");
+  const [newFollowers, setNewFollowers] = useState("");
+  const [savingLink, setSavingLink] = useState(false);
+
+  const loadSocialLinks = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("social_links")
+      .select("id, platform, url, follower_count, verification_status")
+      .eq("comedian_id", comic.id)
+      .order("platform");
+    if (error) console.error("Erreur chargement liens sociaux:", error);
+    else setSocialLinks(data || []);
+  }, [comic.id]);
 
   // Charge la liste des catégories + la catégorie actuelle du comic (select pré-rempli).
   useEffect(() => {
@@ -1696,7 +1711,40 @@ function EditComicModal({ comic, onClose, onSaved }) {
         console.error("Erreur chargement catégories:", e);
       }
     })();
-  }, [comic.id]);
+    loadSocialLinks();
+  }, [comic.id, loadSocialLinks]);
+
+  // Ajoute un lien social directement en statut "verified" — c'est l'admin qui le rentre
+  // à la main, pas besoin de repasser par la file de validation.
+  const addSocialLink = async () => {
+    if (!newUrl.trim()) return;
+    setSavingLink(true);
+    try {
+      const { error } = await supabase.from("social_links").upsert({
+        comedian_id: comic.id,
+        platform: newPlatform,
+        url: newUrl.trim(),
+        follower_count: newFollowers ? parseInt(newFollowers, 10) : null,
+        verification_status: "verified",
+        confidence: "certain",
+        source: "admin_manual",
+        followers_updated_at: new Date().toISOString(),
+      }, { onConflict: "comedian_id,platform" });
+      if (error) throw error;
+      setNewUrl(""); setNewFollowers("");
+      await loadSocialLinks();
+    } catch (e) {
+      setErr(e.message || "Erreur lors de l'ajout du lien.");
+    } finally {
+      setSavingLink(false);
+    }
+  };
+
+  const removeSocialLink = async (id) => {
+    const { error } = await supabase.from("social_links").delete().eq("id", id);
+    if (error) { setErr(error.message); return; }
+    await loadSocialLinks();
+  };
 
   const toggleGenre = (g) => {
     const current = (form.genres || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -1778,6 +1826,42 @@ function EditComicModal({ comic, onClose, onSaved }) {
           <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Bio</div>
           <textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={4}
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical" }} />
+        </div>
+
+        <div style={{ marginBottom: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 10 }}>Réseaux sociaux</div>
+
+          {socialLinks.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              {socialLinks.map((link) => (
+                <div key={link.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+                  <span style={{
+                    fontSize: 10.5, padding: "3px 9px", borderRadius: 12, flexShrink: 0,
+                    background: link.verification_status === "verified" ? "rgba(63,184,120,0.15)" : "rgba(154,147,166,0.15)",
+                    color: link.verification_status === "verified" ? C.green : C.dim,
+                  }}>{SOCIAL_ICON_DEFS[link.platform]?.label || link.platform}</span>
+                  <a href={link.url} target="_blank" rel="noreferrer" style={{ flex: 1, minWidth: 0, fontSize: 12, color: C.gold, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{link.url}</a>
+                  {link.follower_count && <span style={{ fontSize: 11, color: C.dim2, flexShrink: 0 }}>{formatFollowerCountPublic(link.follower_count)}</span>}
+                  <button onClick={() => removeSocialLink(link.id)} style={{ background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}><Trash2 size={13} color={C.dim2} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 6 }}>
+            <select value={newPlatform} onChange={(e) => setNewPlatform(e.target.value)}
+              style={{ flexShrink: 0, width: 130, boxSizing: "border-box", padding: "8px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12 }}>
+              {Object.entries(SOCIAL_ICON_DEFS).map(([key, def]) => <option key={key} value={key}>{def.label}</option>)}
+            </select>
+            <input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL du profil"
+              style={{ flex: 1, minWidth: 0, boxSizing: "border-box", padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12 }} />
+            <input value={newFollowers} onChange={(e) => setNewFollowers(e.target.value.replace(/\D/g, ""))} placeholder="Abonnés"
+              style={{ width: 78, flexShrink: 0, boxSizing: "border-box", padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12 }} />
+            <button onClick={addSocialLink} disabled={!newUrl.trim() || savingLink} style={{
+              flexShrink: 0, fontSize: 12, padding: "8px 14px", borderRadius: 8, border: "none", cursor: newUrl.trim() ? "pointer" : "not-allowed",
+              background: newUrl.trim() ? C.gold : C.border, color: newUrl.trim() ? "#1A1509" : C.dim2, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.5,
+            }}>Ajouter</button>
+          </div>
         </div>
 
         {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
