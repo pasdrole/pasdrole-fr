@@ -1044,9 +1044,6 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
               <div>
                 <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
                 <div style={{ marginTop: 8 }}><CountryPill pays={comic.pays} /></div>
-                <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`, border: "none", borderRadius: 9, padding: "8px 16px", cursor: "pointer", color: "#1A1509", fontSize: 12.5, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, marginTop: 10 }}>
-                  <Share size={15} /> {copied ? "LIEN COPIÉ !" : "PARTAGER CETTE FICHE"}
-                </button>
                 <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
                   {genreList.map((g) => (
                     <ClickablePill key={g} title={`Voir tous les humoristes ${g}`} onClick={() => onOpenGenre(g)}>{g}</ClickablePill>
@@ -1054,6 +1051,9 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
                   <Pill>depuis {comic.debut}</Pill>
                   {computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}
                 </div>
+                <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`, border: "none", borderRadius: 9, padding: "8px 16px", cursor: "pointer", color: "#1A1509", fontSize: 12.5, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, marginTop: 10 }}>
+                  <Share size={15} /> {copied ? "LIEN COPIÉ !" : "PARTAGER CETTE FICHE"}
+                </button>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: "wrap" }}>
