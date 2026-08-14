@@ -256,10 +256,11 @@ function SectionTitle({ children, right }) {
 function GoldButton({ children, onClick, disabled, full, type = "button", pulse = false }) {
   return (
     <button type={type} onClick={onClick} disabled={disabled} style={{
-      width: full ? "100%" : undefined, background: disabled ? C.border : `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`,
-      color: disabled ? C.dim2 : "#1A1509", border: "none", padding: "11px 20px", borderRadius: 9,
+      width: full ? "100%" : undefined,
+      background: disabled ? C.border : pulse ? `linear-gradient(145deg, #4FD98E, ${C.green})` : `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`,
+      color: disabled ? C.dim2 : "#0D1F16", border: "none", padding: "11px 20px", borderRadius: 9,
       fontFamily: "'Bebas Neue', sans-serif", fontSize: 14, letterSpacing: 1, cursor: disabled ? "not-allowed" : "pointer",
-      animation: pulse ? "pdPulse 1.6s ease-out infinite" : "none",
+      animation: pulse ? "pdPulse 1.6s ease-out infinite" : "none", transition: "background 0.3s ease",
     }}>{children}</button>
   );
 }
@@ -2394,7 +2395,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Inter, sans-serif" }}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; } @keyframes pdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,180,41,0.55); } 50% { box-shadow: 0 0 0 9px rgba(240,180,41,0); } }`}</style>
+      <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; } @keyframes pdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(63,184,120,0.55); } 50% { box-shadow: 0 0 0 9px rgba(63,184,120,0); } }`}</style>
 
       <Header nav={nav} navigate={goToPage} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} comicsWithStats={comicsWithStats} onOpenComic={openComic} />
 
