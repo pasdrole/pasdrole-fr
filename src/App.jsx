@@ -1238,7 +1238,7 @@ function MatchFighterCard({ comic, picked, isWinner, pct, disabled, onPick }) {
       cursor: disabled ? "default" : "pointer", textAlign: "center", position: "relative",
     }}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-        <PhotoPlaceholder size={84} label={comic.nom} imgSrc={comic.photo_url} />
+        <PhotoPlaceholder size={200} label={comic.nom} imgSrc={comic.photo_url} />
       </div>
       <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, color: C.text, letterSpacing: 0.5, marginBottom: picked ? 12 : 0 }}>{comic.nom}</div>
       {picked && (
