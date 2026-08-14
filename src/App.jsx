@@ -253,12 +253,13 @@ function SectionTitle({ children, right }) {
     </div>
   );
 }
-function GoldButton({ children, onClick, disabled, full, type = "button" }) {
+function GoldButton({ children, onClick, disabled, full, type = "button", pulse = false }) {
   return (
     <button type={type} onClick={onClick} disabled={disabled} style={{
       width: full ? "100%" : undefined, background: disabled ? C.border : `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`,
       color: disabled ? C.dim2 : "#1A1509", border: "none", padding: "11px 20px", borderRadius: 9,
       fontFamily: "'Bebas Neue', sans-serif", fontSize: 14, letterSpacing: 1, cursor: disabled ? "not-allowed" : "pointer",
+      animation: pulse ? "pdPulse 1.6s ease-out infinite" : "none",
     }}>{children}</button>
   );
 }
@@ -1335,7 +1336,7 @@ function MatchPage({ comicA, comicB, matchSlug, onNewMatch }) {
       )}
 
       <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 26, flexWrap: "wrap" }}>
-        <GoldButton onClick={onNewMatch}>Nouveau duel</GoldButton>
+        <GoldButton onClick={onNewMatch} pulse={!!myPick}>Nouveau duel</GoldButton>
         <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.border}`, borderRadius: 9, padding: "11px 20px", cursor: "pointer", color: C.text, fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
           {copied ? "LIEN COPIÉ !" : "PARTAGER"}
         </button>
@@ -2393,7 +2394,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Inter, sans-serif" }}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }`}</style>
+      <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; } @keyframes pdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,180,41,0.55); } 50% { box-shadow: 0 0 0 9px rgba(240,180,41,0); } }`}</style>
 
       <Header nav={nav} navigate={goToPage} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} comicsWithStats={comicsWithStats} onOpenComic={openComic} />
 
