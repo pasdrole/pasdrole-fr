@@ -1043,16 +1043,16 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
               <PhotoPlaceholder size={100} label={comic.nom} imgSrc={comic.photo_url} />
               <div>
                 <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
-                <div style={{ display: "flex", gap: 7, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <CountryPill pays={comic.pays} />
+                <div style={{ marginTop: 8 }}><CountryPill pays={comic.pays} /></div>
+                <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`, border: "none", borderRadius: 9, padding: "8px 16px", cursor: "pointer", color: "#1A1509", fontSize: 12.5, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, marginTop: 10 }}>
+                  <Share size={15} /> {copied ? "LIEN COPIÉ !" : "PARTAGER CETTE FICHE"}
+                </button>
+                <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
                   {genreList.map((g) => (
                     <ClickablePill key={g} title={`Voir tous les humoristes ${g}`} onClick={() => onOpenGenre(g)}>{g}</ClickablePill>
                   ))}
                   <Pill>depuis {comic.debut}</Pill>
                   {computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}
-                  <button onClick={share} title="Partager cette fiche" style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.border}`, borderRadius: 20, padding: "4px 10px", cursor: "pointer", color: C.dim, fontSize: 10.5, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.5 }}>
-                    <Share size={12} /> {copied ? "LIEN COPIÉ !" : "PARTAGER"}
-                  </button>
                 </div>
               </div>
             </div>
