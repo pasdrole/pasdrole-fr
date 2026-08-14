@@ -554,7 +554,7 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "center", marginTop: 10, marginBottom: 12 }}>
-              <PhotoPlaceholder size={58} label={c.nom} imgSrc={c.photo_url} />
+              <PhotoPlaceholder size={74} label={c.nom} imgSrc={c.photo_url} />
             </div>
             <div style={{ color: C.text, fontSize: 13.5, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{c.nom}</div>
             <div style={{ textAlign: "center", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? c.avg10.toFixed(1).replace(".", ",") : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
@@ -611,7 +611,7 @@ function ComicGrid({ comicsWithStats, onOpen, title }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 16 }}>
         {comicsWithStats.map((c) => (
           <button key={c.id} onClick={() => onOpen(c.id)} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, cursor: "pointer", textAlign: "left", display: "flex", gap: 14, alignItems: "flex-start" }}>
-            <PhotoPlaceholder size={50} label={c.nom} imgSrc={c.photo_url} />
+            <PhotoPlaceholder size={74} label={c.nom} imgSrc={c.photo_url} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ color: C.text, fontSize: 14.5, fontWeight: 700, marginBottom: 3 }}>{c.nom}</div>
               <div style={{ color: C.dim2, fontSize: 11.5, marginBottom: 10 }}>{c.pays} · depuis {c.debut}</div>
@@ -1027,7 +1027,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
         <div style={{ flex: "1 1 420px" }}>
           <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 30 }}>
             <div style={{ display: "flex", gap: 20, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
-              <PhotoPlaceholder size={88} label={comic.nom} imgSrc={comic.photo_url} />
+              <PhotoPlaceholder size={100} label={comic.nom} imgSrc={comic.photo_url} />
               <div>
                 <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
                 <div style={{ display: "flex", gap: 7, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
