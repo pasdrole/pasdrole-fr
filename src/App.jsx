@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
-  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe,
+  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe, Share,
 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
 import { supabase } from "./supabaseClient";
@@ -874,6 +874,17 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [videos, setVideos] = useState([]);
   const [category, setCategory] = useState(null); // { category_id, category_slug, category_label }
   const [criteria, setCriteria] = useState([]); // grille de critères (3) de la catégorie du comic
+  const [copied, setCopied] = useState(false);
+
+  const share = async () => {
+    const url = `${window.location.origin}/${comic.slug}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: `${comic.nom} — PasDrôle.fr`, url }); return; } catch (e) { /* annulé */ }
+    }
+    navigator.clipboard?.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1039,6 +1050,9 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
                   ))}
                   <Pill>depuis {comic.debut}</Pill>
                   {computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}
+                  <button onClick={share} title="Partager cette fiche" style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.border}`, borderRadius: 20, padding: "4px 10px", cursor: "pointer", color: C.dim, fontSize: 10.5, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.5 }}>
+                    <Share size={12} /> {copied ? "LIEN COPIÉ !" : "PARTAGER"}
+                  </button>
                 </div>
               </div>
             </div>
