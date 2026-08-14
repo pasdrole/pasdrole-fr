@@ -1886,7 +1886,10 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [videoSearchComic, setVideoSearchComic] = useState(null);
   const [editComic, setEditComic] = useState(null);
   const [adminTab, setAdminTab] = useState("humoristes");
-  const [sortAlpha, setSortAlpha] = useState(false);
+  // Persisté en localStorage : AdminPage est démonté à chaque fois qu'on quitte /admin
+  // (voir App.jsx), un simple useState repartirait donc à false à chaque retour.
+  const [sortAlpha, setSortAlpha] = useState(() => localStorage.getItem("pasdrole_admin_sortAlpha") === "1");
+  useEffect(() => { localStorage.setItem("pasdrole_admin_sortAlpha", sortAlpha ? "1" : "0"); }, [sortAlpha]);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [pendingSocialCount, setPendingSocialCount] = useState(0);
 
@@ -2304,12 +2307,36 @@ export default function App() {
   }, [comics]);
 
   // Ouvre une fiche ET met à jour l'URL du navigateur avec son slug (ex: /gad-elmaleh).
+  // On mémorise la page d'origine complète (from) pour que le bouton "retour" de la fiche
+  // ramène là d'où on vient (admin, classement, genre...) plutôt que systématiquement l'accueil.
+  // Si on ouvre une fiche depuis une autre fiche (ex: lien "voir aussi"), on garde le "from"
+  // d'origine au lieu d'écraser avec "detail".
   const openComic = useCallback((id) => {
     const c = comics.find((x) => x.id === id);
     const slug = c?.slug;
     if (slug) window.history.pushState({}, "", `/${slug}`);
-    setNav({ page: "detail", id, slug });
+    setNav((prev) => ({ page: "detail", id, slug, from: prev.page === "detail" ? prev.from : prev }));
   }, [comics]);
+
+  // Reconstitue l'URL correspondant à une page de nav donnée (utilisé pour le retour).
+  const pathForNav = useCallback((n) => {
+    if (!n) return "/";
+    if (n.page === "genre") return `/genre/${slugifyGenre(n.genre)}`;
+    if (n.page === "match") return `/match/${n.matchSlug}`;
+    if (n.page === "detail") return n.slug ? `/${n.slug}` : "/";
+    return PAGE_PATHS[n.page] || "/";
+  }, []);
+
+  // Retour depuis une fiche : revient sur la page d'où on est venu (admin, classement, etc.)
+  // au lieu de toujours revenir à l'accueil.
+  const goBack = useCallback(() => {
+    setNav((prev) => {
+      const target = prev.from || { page: "home" };
+      const path = pathForNav(target);
+      if (window.location.pathname !== path) window.history.pushState({}, "", path);
+      return target;
+    });
+  }, [pathForNav]);
 
   // Tire un duel aléatoire parmi les humoristes publiés et ouvre directement la page du duel
   // (1 clic depuis l'accueil, pas d'étape intermédiaire). Évite de retomber sur le duel précédent.
@@ -2389,7 +2416,7 @@ export default function App() {
         return <MatchPage comicA={comicA} comicB={comicB} matchSlug={nav.matchSlug} onNewMatch={openRandomMatch} />;
       })()}
       {nav.page === "detail" && (
-        <ComicDetail comicId={nav.id} user={user} onBack={() => goToPage("home")} onRequireAuth={() => setShowAuth(true)} onOpenGenre={openGenre} />
+        <ComicDetail comicId={nav.id} user={user} onBack={goBack} onRequireAuth={() => setShowAuth(true)} onOpenGenre={openGenre} />
       )}
       {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={openComic} />}
       {nav.page === "contact" && <ContactPage />}
