@@ -1906,6 +1906,7 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
   // (voir App.jsx), un simple useState repartirait donc à false à chaque retour.
   const [sortAlpha, setSortAlpha] = useState(() => localStorage.getItem("pasdrole_admin_sortAlpha") === "1");
   useEffect(() => { localStorage.setItem("pasdrole_admin_sortAlpha", sortAlpha ? "1" : "0"); }, [sortAlpha]);
+  const [adminSearch, setAdminSearch] = useState("");
   const [pendingReviews, setPendingReviews] = useState([]);
   const [pendingSocialCount, setPendingSocialCount] = useState(0);
 
@@ -2185,8 +2186,25 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
               <span style={{ fontSize: 12, color: C.dim2 }}>{comics.length} au total</span>
             </div>
           }>BASE DES HUMORISTES</SectionTitle>
+          <div style={{ position: "relative", marginBottom: 14 }}>
+            <Search size={14} color={C.dim2} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+            <input
+              type="text"
+              value={adminSearch}
+              onChange={(e) => setAdminSearch(e.target.value)}
+              placeholder="Rechercher un humoriste..."
+              style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 34px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12.5 }}
+            />
+            {adminSearch && (
+              <button onClick={() => setAdminSearch("")} title="Effacer" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", display: "flex" }}>
+                <X size={14} color={C.dim2} />
+              </button>
+            )}
+          </div>
           <div style={{ maxHeight: 560, overflowY: "auto" }}>
-            {(sortAlpha ? [...comics].sort((a, b) => a.nom.localeCompare(b.nom, "fr")) : comics).map((c) => (
+            {(sortAlpha ? [...comics].sort((a, b) => a.nom.localeCompare(b.nom, "fr")) : comics)
+              .filter((c) => c.nom.toLowerCase().includes(adminSearch.trim().toLowerCase()))
+              .map((c) => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${C.border}` }}>
                 <label style={{ position: "relative", cursor: "pointer", flexShrink: 0 }} title="Cliquer pour changer la photo">
                   <PhotoPlaceholder size={36} label={c.nom} imgSrc={c.photo_url} />
