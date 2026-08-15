@@ -1170,7 +1170,7 @@ function MatchCTA({ onLaunch }) {
       }}>
         <CrossedSwords size={26} />
         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 1, color: C.text }}>
-          QUI L'EMPORTE ? <span style={{ color: C.gold }}>LANCER UN DUEL</span>
+          <span style={{ color: C.gold }}>DUEL ALÉATOIRE</span>
         </span>
         <CrossedSwords size={26} />
       </button>
@@ -2712,10 +2712,9 @@ export default function App() {
         <>
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
-          <DuelWinnersStrip comics={comics} />
           <CombatDuMoment onOpenComic={openComic} />
           <MatchCTA onLaunch={openRandomMatch} />
-          <MatchLeaderboard comics={comics} />
+          <DuelWinnersStrip comics={comics} />
           <LatestReviews onOpen={openComic} />
         </>
       )}
