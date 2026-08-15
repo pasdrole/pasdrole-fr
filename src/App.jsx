@@ -1174,6 +1174,9 @@ function MatchCTA({ onLaunch }) {
         </span>
         <CrossedSwords size={26} />
       </button>
+      <div style={{ textAlign: "center", fontSize: 11.5, color: C.dim2, marginTop: 8 }}>
+        Votez, et le gagnant lance automatiquement un nouveau combat aléatoire !
+      </div>
     </section>
   );
 }
@@ -1246,6 +1249,210 @@ function MatchLeaderboard({ comics }) {
     </section>
   );
 }
+// Les 3 vignettes duel : gagnant de la semaine calendaire précédente (lundi 00:00 -> lundi 00:00),
+// gagnant du mois civil précédent, et le N°1 all-time (le plus de victoires en duel cumulées).
+function getMondayParis(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function DuelWinnerCard({ label, icon, data }) {
+  return (
+    <div style={{ flex: "1 1 220px", background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 14, padding: "20px 18px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 8, minHeight: 190 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {icon}
+        <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase" }}>{label}</div>
+      </div>
+      {data ? (
+        <>
+          <PhotoPlaceholder size={76} label={data.nom} imgSrc={data.photo_url} />
+          <div>
+            <div style={{ fontSize: 15, color: C.text, fontWeight: 700 }}>{data.nom}</div>
+            <div style={{ fontSize: 12, color: C.gold, marginTop: 2 }}>{data.votes} victoire{data.votes !== 1 ? "s" : ""}</div>
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12.5, color: C.dim2, marginTop: 20 }}>Pas encore de données</div>
+      )}
+    </div>
+  );
+}
+function DuelWinnersStrip({ comics }) {
+  const [weekWinner, setWeekWinner] = useState(null);
+  const [monthWinner, setMonthWinner] = useState(null);
+  const [allTimeWinner, setAllTimeWinner] = useState(null);
+
+  useEffect(() => {
+    api.fetchAllMatchVotes().then((votes) => {
+      const comicById = Object.fromEntries(comics.map((c) => [c.id, c]));
+      const topFrom = (rows) => {
+        if (!rows.length) return null;
+        const wins = {};
+        rows.forEach((v) => { wins[v.winner_id] = (wins[v.winner_id] || 0) + 1; });
+        const [id, count] = Object.entries(wins).sort((a, b) => b[1] - a[1])[0];
+        return comicById[id] ? { ...comicById[id], votes: count } : null;
+      };
+
+      const now = new Date();
+      const thisMonday = getMondayParis(now);
+      const lastMonday = new Date(thisMonday); lastMonday.setDate(lastMonday.getDate() - 7);
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+      setWeekWinner(topFrom(votes.filter((v) => { const t = new Date(v.created_at); return t >= lastMonday && t < thisMonday; })));
+      setMonthWinner(topFrom(votes.filter((v) => { const t = new Date(v.created_at); return t >= lastMonthStart && t < thisMonthStart; })));
+      setAllTimeWinner(topFrom(votes));
+    }).catch((e) => console.error("Erreur vignettes duel:", e));
+  }, [comics]);
+
+  return (
+    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "18px 24px 0" }}>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <DuelWinnerCard label="Gagnant semaine précédente" icon={<Calendar size={16} color={C.gold} />} data={weekWinner} />
+        <DuelWinnerCard label="Gagnant mois précédent" icon={<Calendar size={16} color={C.gold} />} data={monthWinner} />
+        <DuelWinnerCard label="N°1 de tous les temps" icon={<Crown size={16} color={C.gold} />} data={allTimeWinner} />
+      </div>
+    </section>
+  );
+}
+
+// "Combat du moment" : un duel choisi manuellement en admin, dont les votes sont comptabilisés
+// jusqu'à clôture manuelle. Le résultat du dernier combat clôturé reste affiché en permanence
+// sous la zone de vote (qu'un nouveau combat soit lancé ou non), et ouvre l'historique complet au clic.
+function CombatDuMoment({ onOpenComic }) {
+  const [combat, setCombat] = useState(null);
+  const [lastResult, setLastResult] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [voting, setVoting] = useState(false);
+
+  const load = useCallback(async () => {
+    const active = await api.fetchActiveCombat().catch((e) => { console.error("Erreur combat actif:", e); return null; });
+    setCombat(active);
+    setHasVoted(active ? !!localStorage.getItem(`combat_voted:${active.id}`) : false);
+    api.fetchLastCombat().then(setLastResult).catch((e) => console.error("Erreur dernier combat:", e));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const vote = async (winnerId) => {
+    if (!combat || hasVoted || voting) return;
+    setVoting(true);
+    try {
+      await api.submitCombatVote(combat.id, combat.comic_a_id, combat.comic_b_id, winnerId);
+      localStorage.setItem(`combat_voted:${combat.id}`, "1");
+      setHasVoted(true);
+      const refreshed = await api.fetchActiveCombat();
+      setCombat(refreshed);
+    } catch (e) {
+      console.error("Erreur vote combat:", e);
+    } finally {
+      setVoting(false);
+    }
+  };
+
+  const openHistory = async () => {
+    try { setHistory(await api.fetchCombatHistory()); setShowHistory(true); }
+    catch (e) { console.error("Erreur historique combats:", e); }
+  };
+
+  if (!combat && !lastResult) return null; // rien à afficher tant qu'aucun combat n'a jamais été lancé
+
+  const totalVotes = combat ? combat.votesA + combat.votesB : 0;
+  const pctA = totalVotes > 0 ? Math.round((combat.votesA / totalVotes) * 100) : 50;
+  const pctB = 100 - pctA;
+
+  return (
+    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
+      <SectionTitle>COMBAT DU MOMENT</SectionTitle>
+
+      {combat ? (
+        <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+          <MatchFighterCard comic={combat.comic_a} picked={hasVoted} isWinner={combat.votesA >= combat.votesB} pct={pctA} disabled={hasVoted || voting} onPick={() => vote(combat.comic_a_id)} />
+          <CrossedSwords size={26} />
+          <MatchFighterCard comic={combat.comic_b} picked={hasVoted} isWinner={combat.votesB > combat.votesA} pct={pctB} disabled={hasVoted || voting} onPick={() => vote(combat.comic_b_id)} />
+        </div>
+      ) : (
+        <div style={{ color: C.dim2, fontSize: 13, textAlign: "center", padding: "20px 0" }}>Aucun combat en cours pour le moment.</div>
+      )}
+
+      {lastResult && (
+        <button onClick={openHistory} style={{
+          marginTop: 22, width: "100%", textAlign: "left", cursor: "pointer",
+          background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 20px",
+        }}>
+          <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 12, textAlign: "center" }}>
+            Dernier combat — cliquez pour voir l'historique complet
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 24 }}>
+            <div style={{ textAlign: "center" }}>
+              <PhotoPlaceholder size={52} label={lastResult.comic_a.nom} imgSrc={lastResult.comic_a.photo_url} />
+              <div style={{ fontSize: 12.5, color: C.text, marginTop: 6 }}>{lastResult.comic_a.nom}</div>
+              <div style={{ fontSize: 11, color: C.dim2 }}>{lastResult.votes_a} votes</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <Crown size={20} color={C.gold} />
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>{lastResult.winner?.nom}</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <PhotoPlaceholder size={52} label={lastResult.comic_b.nom} imgSrc={lastResult.comic_b.photo_url} />
+              <div style={{ fontSize: 12.5, color: C.text, marginTop: 6 }}>{lastResult.comic_b.nom}</div>
+              <div style={{ fontSize: 11, color: C.dim2 }}>{lastResult.votes_b} votes</div>
+            </div>
+          </div>
+        </button>
+      )}
+
+      {showHistory && (
+        <div onClick={() => setShowHistory(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, maxWidth: 640, width: "100%", maxHeight: "80vh", overflowY: "auto", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.text, letterSpacing: 1, margin: 0 }}>HISTORIQUE DES COMBATS</h3>
+              <button onClick={() => setShowHistory(false)} style={{ background: "none", border: "none", color: C.dim, fontSize: 24, cursor: "pointer", lineHeight: 1 }}><X size={22} /></button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {history.map((c) => {
+                const total = c.votes_a + c.votes_b;
+                const pA = total > 0 ? Math.round((c.votes_a / total) * 100) : 50;
+                return (
+                  <div key={c.id} style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+                    <div style={{ fontSize: 11, color: C.dim2, marginBottom: 8 }}>
+                      {new Date(c.ended_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <PhotoPlaceholder size={38} label={c.comic_a.nom} imgSrc={c.comic_a.photo_url} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
+                          <span style={{ color: c.winner?.id === c.comic_a.id ? C.gold : C.text, fontWeight: c.winner?.id === c.comic_a.id ? 700 : 400 }}>{c.comic_a.nom}</span>
+                          <span style={{ color: c.winner?.id === c.comic_b.id ? C.gold : C.text, fontWeight: c.winner?.id === c.comic_b.id ? 700 : 400 }}>{c.comic_b.nom}</span>
+                        </div>
+                        <div style={{ height: 6, background: C.bg, borderRadius: 10, overflow: "hidden", display: "flex" }}>
+                          <div style={{ width: `${pA}%`, background: C.gold }} />
+                          <div style={{ width: `${100 - pA}%`, background: C.dim2 }} />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.dim2, marginTop: 4 }}>
+                          <span>{c.votes_a} votes</span>
+                          <span>{c.votes_b} votes</span>
+                        </div>
+                      </div>
+                      <PhotoPlaceholder size={38} label={c.comic_b.nom} imgSrc={c.comic_b.photo_url} />
+                    </div>
+                  </div>
+                );
+              })}
+              {history.length === 0 && <div style={{ color: C.dim2, fontSize: 13, textAlign: "center", padding: "30px 0" }}>Aucun combat clôturé pour l'instant.</div>}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function MatchFighterCard({ comic, picked, isWinner, pct, disabled, onPick }) {
   return (
     <button onClick={onPick} disabled={disabled} style={{
@@ -1887,6 +2094,69 @@ function EditComicModal({ comic, onClose, onSaved }) {
   );
 }
 
+function AdminCombatTab() {
+  const [comics, setComics] = useState([]);
+  const [comicA, setComicA] = useState("");
+  const [comicB, setComicB] = useState("");
+  const [activeCombat, setActiveCombat] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setComics(await api.fetchComicsForCombatAdmin());
+    setActiveCombat(await api.fetchActiveCombat());
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const handleLaunch = async () => {
+    if (!comicA || !comicB || comicA === comicB) { alert("Choisis deux humoristes différents."); return; }
+    setLoading(true);
+    try { await api.launchCombat(comicA, comicB); setComicA(""); setComicB(""); await load(); }
+    catch (e) { alert("Erreur : " + e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleClose = async () => {
+    if (!activeCombat) return;
+    setLoading(true);
+    try { await api.closeCombat(activeCombat); await load(); }
+    catch (e) { alert("Erreur : " + e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720 }}>
+      <SectionTitle>COMBAT DU MOMENT</SectionTitle>
+      {activeCombat ? (
+        <div>
+          <div style={{ fontSize: 13, color: C.dim, marginBottom: 14 }}>
+            Combat actif : <strong style={{ color: C.text }}>{activeCombat.comic_a.nom}</strong> vs <strong style={{ color: C.text }}>{activeCombat.comic_b.nom}</strong>
+            {" "}({activeCombat.votesA} / {activeCombat.votesB} votes)
+          </div>
+          <button onClick={handleClose} disabled={loading} style={{
+            fontSize: 12.5, padding: "8px 18px", borderRadius: 20, border: "none", cursor: "pointer",
+            background: "rgba(224,87,74,0.15)", color: C.red, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, opacity: loading ? 0.6 : 1,
+          }}>CLÔTURER CE COMBAT</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={comicA} onChange={(e) => setComicA(e.target.value)} style={{ flex: "1 1 200px", padding: 10, borderRadius: 8, background: C.panel2, border: `1px solid ${C.border}`, color: C.text }}>
+            <option value="">Humoriste A</option>
+            {comics.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+          <select value={comicB} onChange={(e) => setComicB(e.target.value)} style={{ flex: "1 1 200px", padding: 10, borderRadius: 8, background: C.panel2, border: `1px solid ${C.border}`, color: C.text }}>
+            <option value="">Humoriste B</option>
+            {comics.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+          <button onClick={handleLaunch} disabled={loading} style={{
+            fontSize: 12.5, padding: "10px 18px", borderRadius: 20, border: "none", cursor: "pointer",
+            background: C.gold, color: "#1A1509", fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, opacity: loading ? 0.6 : 1,
+          }}>LANCER LE COMBAT</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminPage({ onRefreshPublic, onOpenComic }) {
   const [comics, setComics] = useState([]);
   const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "" });
@@ -2072,9 +2342,16 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
           background: adminTab === "liens" ? C.gold : C.panel2, color: adminTab === "liens" ? "#1A1509" : C.dim,
           fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6,
         }}>LIENS SOCIAUX {pendingSocialCount > 0 && <span style={{ background: adminTab === "liens" ? "#1A1509" : C.red, color: adminTab === "liens" ? C.gold : "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10.5 }}>{pendingSocialCount}</span>}</button>
+        <button onClick={() => setAdminTab("combat")} style={{
+          fontSize: 12.5, padding: "8px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+          background: adminTab === "combat" ? C.gold : C.panel2, color: adminTab === "combat" ? "#1A1509" : C.dim,
+          fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
+        }}>COMBAT</button>
       </div>
 
-      {adminTab === "avis" ? (
+      {adminTab === "combat" ? (
+        <AdminCombatTab />
+      ) : adminTab === "avis" ? (
         <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720 }}>
           <SectionTitle>AVIS EN ATTENTE ({pendingReviews.length})</SectionTitle>
           {pendingReviews.length === 0 && <div style={{ color: C.dim2, fontSize: 13 }}>Aucun avis en attente de validation.</div>}
@@ -2435,6 +2712,8 @@ export default function App() {
         <>
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
+          <DuelWinnersStrip comics={comics} />
+          <CombatDuMoment onOpenComic={openComic} />
           <MatchCTA onLaunch={openRandomMatch} />
           <MatchLeaderboard comics={comics} />
           <LatestReviews onOpen={openComic} />
