@@ -1163,6 +1163,7 @@ function CrossedSwords({ size = 22, color = C.gold }) {
 function MatchCTA({ onLaunch }) {
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
+      <SectionTitle>DUEL AU HASARD</SectionTitle>
       <button onClick={onLaunch} style={{
         width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
         background: `linear-gradient(120deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
@@ -1368,7 +1369,7 @@ function CombatDuMoment({ onOpenComic }) {
 
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
-      <SectionTitle>COMBAT DU MOMENT</SectionTitle>
+      <SectionTitle>SUR LE RING</SectionTitle>
 
       {combat ? (
         <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
