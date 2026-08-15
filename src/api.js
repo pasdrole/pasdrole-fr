@@ -416,6 +416,81 @@ export async function fetchAllMatchVotes() {
 }
 
 // ---------- "Mes avis" — tout ce qu'un compte a noté/commenté ----------
+export async function fetchActiveCombat() {
+  const { data, error } = await supabase
+    .from("combats")
+    .select(`
+      id, comic_a_id, comic_b_id, started_at,
+      comic_a:comics!combats_comic_a_id_fkey(id, nom, photo_url, slug),
+      comic_b:comics!combats_comic_b_id_fkey(id, nom, photo_url, slug)
+    `)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const { count: votesA } = await supabase.from("match_votes").select("*", { count: "exact", head: true }).eq("combat_id", data.id).eq("winner_id", data.comic_a_id);
+  const { count: votesB } = await supabase.from("match_votes").select("*", { count: "exact", head: true }).eq("combat_id", data.id).eq("winner_id", data.comic_b_id);
+  return { ...data, votesA: votesA || 0, votesB: votesB || 0 };
+}
+
+export async function fetchLastCombat() {
+  const { data, error } = await supabase
+    .from("combats")
+    .select(`
+      id, ended_at, votes_a, votes_b,
+      comic_a:comics!combats_comic_a_id_fkey(id, nom, photo_url, slug),
+      comic_b:comics!combats_comic_b_id_fkey(id, nom, photo_url, slug),
+      winner:comics!combats_winner_id_fkey(id, nom, photo_url, slug)
+    `)
+    .eq("is_active", false)
+    .order("ended_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchCombatHistory() {
+  const { data, error } = await supabase
+    .from("combats")
+    .select(`
+      id, ended_at, votes_a, votes_b,
+      comic_a:comics!combats_comic_a_id_fkey(id, nom, photo_url, slug),
+      comic_b:comics!combats_comic_b_id_fkey(id, nom, photo_url, slug),
+      winner:comics!combats_winner_id_fkey(id, nom, photo_url, slug)
+    `)
+    .eq("is_active", false)
+    .order("ended_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function submitCombatVote(combatId, comicAId, comicBId, winnerId) {
+  const { error } = await supabase.from("match_votes").insert({ comic_a_id: comicAId, comic_b_id: comicBId, winner_id: winnerId, combat_id: combatId });
+  if (error) throw error;
+}
+
+export async function fetchComicsForCombatAdmin() {
+  const { data, error } = await supabase.from("comics").select("id, nom").eq("status", "published").order("nom");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function launchCombat(comicAId, comicBId) {
+  const { error } = await supabase.from("combats").insert({ comic_a_id: comicAId, comic_b_id: comicBId });
+  if (error) throw error;
+}
+
+export async function closeCombat(combat) {
+  const { count: votesA } = await supabase.from("match_votes").select("*", { count: "exact", head: true }).eq("combat_id", combat.id).eq("winner_id", combat.comic_a_id);
+  const { count: votesB } = await supabase.from("match_votes").select("*", { count: "exact", head: true }).eq("combat_id", combat.id).eq("winner_id", combat.comic_b_id);
+  const winnerId = (votesA || 0) >= (votesB || 0) ? combat.comic_a_id : combat.comic_b_id;
+  const { error } = await supabase.from("combats").update({
+    is_active: false, ended_at: new Date().toISOString(), winner_id: winnerId, votes_a: votesA || 0, votes_b: votesB || 0,
+  }).eq("id", combat.id);
+  if (error) throw error;
+}
+
 export async function fetchMyActivity(userId) {
   const [{ data: ratings, error: e1 }, { data: reviews, error: e2 }] = await Promise.all([
     supabase.from("ratings").select("*, comics(id, nom)").eq("user_id", userId),
