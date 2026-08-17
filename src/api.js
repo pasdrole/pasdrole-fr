@@ -560,7 +560,7 @@ export async function deleteStreamer(id) {
 // Classement "Top Forme" : le dernier score connu de chaque streamer suivi.
 export async function fetchStreamersRanking() {
   const { data: streamers, error } = await supabase
-    .from("streamers").select("id, twitch_login, slug, nom_affiche, avatar_url, verified").eq("tracked", true);
+    .from("streamers").select("id, twitch_login, slug, nom_affiche, avatar_url, verified, followers_count").eq("tracked", true);
   if (error) throw error;
   if (!streamers || !streamers.length) return [];
 
