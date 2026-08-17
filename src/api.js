@@ -465,9 +465,26 @@ export async function fetchCombatHistory() {
   return data || [];
 }
 
-export async function submitCombatVote(combatId, comicAId, comicBId, winnerId) {
-  const { error } = await supabase.from("match_votes").insert({ comic_a_id: comicAId, comic_b_id: comicBId, winner_id: winnerId, combat_id: combatId });
-  if (error) throw error;
+// Vote "Sur le ring" : passe par l'Edge Function combat-vote plutôt qu'un insert direct,
+// pour que la vérification anti-fraude (IP hashée côté serveur + empreinte navigateur) soit
+// infalsifiable depuis le client. Le mode Match public (duels aléatoires) reste en insert direct.
+const COMBAT_VOTE_URL = "https://gltyvhjhormviwkpjrkw.supabase.co/functions/v1/combat-vote";
+
+export async function submitCombatVote(combatId, comicAId, comicBId, winnerId, fingerprint) {
+  const res = await fetch(COMBAT_VOTE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, "apikey": SUPABASE_ANON_KEY },
+    body: JSON.stringify({ combat_id: combatId, comic_a_id: comicAId, comic_b_id: comicBId, winner_id: winnerId, fingerprint }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    if (body.error === "already_voted") {
+      const err = new Error("already_voted");
+      err.code = "already_voted";
+      throw err;
+    }
+    throw new Error(body.error || "Erreur lors du vote");
+  }
 }
 
 export async function fetchComicsForCombatAdmin() {
@@ -511,4 +528,89 @@ export async function fetchMyProfile(userId) {
 export async function createProfile(userId, pseudo) {
   const { error } = await supabase.from("profiles").insert({ id: userId, pseudo });
   if (error) throw error;
+}
+
+// ---------- Streamers (Indice de Forme) ----------
+// Phase privée : ces fonctions alimentent des pages non liées dans la nav et en noindex,
+// tant que l'outreach auprès des streamers (voir plan produit) n'est pas fait.
+
+export async function fetchTrackedStreamersAdmin() {
+  const { data, error } = await supabase.from("streamers").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addTrackedStreamer(twitchLogin) {
+  const login = twitchLogin.trim().toLowerCase();
+  if (!login) throw new Error("Login Twitch requis");
+  const { error } = await supabase.from("streamers").insert({ twitch_login: login, slug: login, tracked: true });
+  if (error) throw error;
+}
+
+export async function setStreamerTracked(id, tracked) {
+  const { error } = await supabase.from("streamers").update({ tracked }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteStreamer(id) {
+  const { error } = await supabase.from("streamers").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// Classement "Top Forme" : le dernier score connu de chaque streamer suivi.
+export async function fetchStreamersRanking() {
+  const { data: streamers, error } = await supabase
+    .from("streamers").select("id, twitch_login, slug, nom_affiche, avatar_url, verified").eq("tracked", true);
+  if (error) throw error;
+  if (!streamers || !streamers.length) return [];
+
+  const { data: scores, error: scoresError } = await supabase
+    .from("streamer_score_history")
+    .select("streamer_id, score_forme, momentum, is_provisional, computed_at")
+    .in("streamer_id", streamers.map((s) => s.id))
+    .order("computed_at", { ascending: false });
+  if (scoresError) throw scoresError;
+
+  const latestByStreamer = {};
+  (scores || []).forEach((s) => { if (!latestByStreamer[s.streamer_id]) latestByStreamer[s.streamer_id] = s; });
+
+  return streamers
+    .map((s) => ({ ...s, score: latestByStreamer[s.id] || null }))
+    .filter((s) => s.score) // pas encore de score = pas assez de streams clos, hors classement
+    .sort((a, b) => b.score.score_forme - a.score.score_forme);
+}
+
+// Fiche détail d'un streamer : infos + historique de score (pour le sparkline) + derniers streams.
+export async function fetchStreamerDetail(twitchLogin) {
+  const { data: streamer, error } = await supabase.from("streamers").select("*").eq("twitch_login", twitchLogin.toLowerCase()).maybeSingle();
+  if (error) throw error;
+  if (!streamer) return null;
+
+  const [{ data: history }, { data: streams }, { data: baseline }] = await Promise.all([
+    supabase.from("streamer_score_history").select("*").eq("streamer_id", streamer.id).order("computed_at", { ascending: true }).limit(20),
+    supabase.from("streams").select("*").eq("streamer_id", streamer.id).in("status", ["provisoire", "consolide"]).order("started_at", { ascending: false }).limit(10),
+    supabase.from("streamer_baselines").select("*").eq("streamer_id", streamer.id).maybeSingle(),
+  ]);
+
+  return { streamer, history: history || [], streams: streams || [], baseline };
+}
+
+// Marque un stream comme "événement" (exclu du calcul de forme, gardé pour les records) — admin uniquement.
+export async function setStreamEventTag(streamId, isEvent) {
+  const { error } = await supabase.from("streams").update({ is_event: isEvent }).eq("id", streamId);
+  if (error) throw error;
+}
+
+// Construit l'URL d'autorisation Twitch pour le programme "Streamer vérifié" (opt-in followers).
+// client_id est public par nature (visible dans toute app OAuth), safe à exposer côté front.
+const TWITCH_CLIENT_ID = import.meta.env.VITE_TWITCH_CLIENT_ID || "";
+export function getTwitchConnectUrl(streamerId) {
+  const params = new URLSearchParams({
+    client_id: TWITCH_CLIENT_ID,
+    redirect_uri: "https://pasdrole.fr/auth/twitch/callback",
+    response_type: "code",
+    scope: "moderator:read:followers",
+    state: streamerId,
+  });
+  return `https://id.twitch.tv/oauth2/authorize?${params.toString()}`;
 }
