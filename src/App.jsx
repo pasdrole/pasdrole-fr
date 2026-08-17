@@ -301,11 +301,11 @@ function AuthModal({ onClose, onAuthed }) {
     try {
       if (mode === "signup") {
         if (!pseudo.trim()) throw new Error("Choisis un pseudo.");
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        // Le pseudo passe par les métadonnées signUp : le trigger serveur handle_new_user()
+        // crée le profil à l'insertion du compte, sans dépendre d'une session active côté client
+        // (qui n'existe pas encore tant que l'email n'est pas confirmé).
+        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { pseudo: pseudo.trim() } } });
         if (error) throw error;
-        if (data.user) {
-          try { await api.createProfile(data.user.id, pseudo.trim()); } catch (e) { /* pseudo peut-être déjà pris */ }
-        }
         setInfo("Compte créé. Vérifie ta boîte mail pour confirmer ton adresse avant de te connecter.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
