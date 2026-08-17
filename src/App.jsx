@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe, Share,
 } from "lucide-react";
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "./supabaseClient";
 import * as api from "./api";
 
@@ -15,7 +15,27 @@ const C = {
 };
 
 // Correspondance page interne <-> URL propre (pour le référencement et le partage de liens).
-const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", contact: "/contact", mine: "/mon-espace", admin: "/admin" };
+const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", contact: "/contact", mine: "/mon-espace", admin: "/admin", streamers: "/streamers" };
+
+// Empreinte navigateur simple (anti-fraude "Sur le ring", en complément de l'IP vérifiée côté serveur).
+// Ne cherche pas à être infalsifiable — juste à rendre le "vider son localStorage pour revoter" inefficace.
+// Calculée une fois et mise en cache en session (pas besoin de la recalculer à chaque vote).
+let _browserFingerprintCache = null;
+async function getBrowserFingerprint() {
+  if (_browserFingerprintCache) return _browserFingerprintCache;
+  try {
+    const raw = [
+      navigator.userAgent, navigator.language, screen.width, screen.height, screen.colorDepth,
+      Intl.DateTimeFormat().resolvedOptions().timeZone, navigator.hardwareConcurrency || "",
+    ].join("|");
+    const data = new TextEncoder().encode(raw);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    _browserFingerprintCache = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch (e) {
+    _browserFingerprintCache = "fp-unavailable";
+  }
+  return _browserFingerprintCache;
+}
 
 const GENRE_OPTIONS = [
   "Sketch", "Satire", "Stand-up", "Imitation", "Impro", "Parodie", "Absurde",
@@ -127,11 +147,12 @@ function upsertMeta(attr, key, content) {
 }
 // Met à jour le titre d'onglet + la meta description + les balises Open Graph (aperçu de lien
 // sur WhatsApp/Facebook/X/etc.). À appeler à chaque changement de page/fiche.
-function applySEO({ title, description, image, url } = {}) {
+function applySEO({ title, description, image, url, noindex } = {}) {
   const t = title || DEFAULT_TITLE;
   const d = (description || DEFAULT_DESCRIPTION).slice(0, 160);
   document.title = t;
   upsertMeta("name", "description", d);
+  upsertMeta("name", "robots", noindex ? "noindex, nofollow" : "index, follow");
   upsertMeta("property", "og:site_name", SITE_NAME);
   upsertMeta("property", "og:type", "website");
   upsertMeta("property", "og:title", t);
@@ -1344,13 +1365,21 @@ function CombatDuMoment({ onOpenComic }) {
     if (!combat || hasVoted || voting) return;
     setVoting(true);
     try {
-      await api.submitCombatVote(combat.id, combat.comic_a_id, combat.comic_b_id, winnerId);
+      const fingerprint = await getBrowserFingerprint();
+      await api.submitCombatVote(combat.id, combat.comic_a_id, combat.comic_b_id, winnerId, fingerprint);
       localStorage.setItem(`combat_voted:${combat.id}`, "1");
       setHasVoted(true);
       const refreshed = await api.fetchActiveCombat();
       setCombat(refreshed);
     } catch (e) {
-      console.error("Erreur vote combat:", e);
+      if (e.code === "already_voted") {
+        // Déjà voté depuis cette IP/empreinte (autre appareil, cache vidé...) : on aligne
+        // l'état local plutôt que d'afficher une erreur, l'utilisateur a bien "déjà voté".
+        localStorage.setItem(`combat_voted:${combat.id}`, "1");
+        setHasVoted(true);
+      } else {
+        console.error("Erreur vote combat:", e);
+      }
     } finally {
       setVoting(false);
     }
@@ -1800,6 +1829,222 @@ function ContactPage() {
   );
 }
 
+// ---------- Streamers (Indice de Forme) — phase privée : pages non liées dans la nav,
+// en noindex, accessibles seulement par URL directe (admin, ou lien envoyé en outreach). ----------
+
+function scoreLabel(score) {
+  if (score >= 80) return { text: "En pleine bourre", color: C.green };
+  if (score >= 60) return { text: "En forme", color: C.gold };
+  if (score >= 40) return { text: "Rythme habituel", color: C.dim };
+  return { text: "En retrait", color: C.red };
+}
+
+function StreamerScoreBadge({ score, size = 15 }) {
+  const label = scoreLabel(score);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: size * 2.4, color: label.color, lineHeight: 1 }}>{Math.round(score)}</div>
+      <div style={{ fontSize: size * 0.8, color: label.color }}>{label.text}</div>
+    </div>
+  );
+}
+
+function StreamersRankingPage({ onOpenStreamer }) {
+  const [ranking, setRanking] = useState(null);
+
+  useEffect(() => {
+    applySEO({ title: `Top Forme Streamers | ${SITE_NAME}`, description: "Classement de forme des streamers français, basé sur leurs 5 derniers lives — pas juste sur leur taille.", noindex: true });
+    api.fetchStreamersRanking().then(setRanking).catch((e) => { console.error("Erreur classement streamers:", e); setRanking([]); });
+  }, []);
+
+  if (ranking === null) return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement du classement...</div>;
+
+  return (
+    <div style={{ maxWidth: 820, margin: "0 auto", padding: "40px 24px 60px" }}>
+      <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, letterSpacing: 1, marginBottom: 6 }}>TOP FORME — STREAMERS</h1>
+      <p style={{ color: C.dim, fontSize: 14, marginBottom: 26 }}>Pas qui est le plus gros. Qui performe le mieux en ce moment, sur ses 5 derniers lives.</p>
+
+      {ranking.length === 0 ? (
+        <div style={{ color: C.dim2, fontSize: 13 }}>Aucun streamer avec assez de données pour l'instant.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {ranking.map((s, idx) => {
+            const label = scoreLabel(s.score.score_forme);
+            return (
+              <div key={s.id} onClick={() => onOpenStreamer(s.twitch_login)} style={{
+                display: "flex", alignItems: "center", gap: 14, background: C.panel, border: `1px solid ${C.border}`,
+                borderRadius: 12, padding: "14px 18px", cursor: "pointer",
+              }}>
+                <div style={{ width: 26, textAlign: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: C.dim2 }}>{idx + 1}</div>
+                <PhotoPlaceholder size={44} label={s.nom_affiche || s.twitch_login} imgSrc={s.avatar_url} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 14, color: C.text, fontWeight: 600 }}>{s.nom_affiche || s.twitch_login}</span>
+                    {s.verified && <Check size={13} color={C.green} />}
+                    {s.score.is_provisional && <span style={{ fontSize: 10, color: C.dim2, background: C.panel2, borderRadius: 8, padding: "1px 7px" }}>provisoire</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: label.color }}>{label.text}</div>
+                </div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: label.color }}>{Math.round(s.score.score_forme)}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StreamerDetailPage({ twitchLogin, onBack }) {
+  const [data, setData] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+
+  const load = useCallback(() => {
+    api.fetchStreamerDetail(twitchLogin).then(setData).catch((e) => console.error("Erreur fiche streamer:", e));
+  }, [twitchLogin]);
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!data?.streamer) return;
+    applySEO({
+      title: `${data.streamer.nom_affiche || data.streamer.twitch_login} — Indice de Forme | ${SITE_NAME}`,
+      description: `Suivi de forme de ${data.streamer.nom_affiche || data.streamer.twitch_login} sur ses derniers lives Twitch.`,
+      noindex: true,
+    });
+  }, [data]);
+
+  if (!data) return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement...</div>;
+  const { streamer, history, streams } = data;
+  const latestScore = history[history.length - 1];
+  const sparkData = history.map((h) => ({ date: new Date(h.computed_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }), score: Math.round(h.score_forme) }));
+
+  const connectTwitch = () => {
+    setConnecting(true);
+    window.location.href = api.getTwitchConnectUrl(streamer.id);
+  };
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px 60px" }}>
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 13, marginBottom: 18, padding: 0 }}>
+        <ArrowLeft size={15} /> Retour
+      </button>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 22 }}>
+        <PhotoPlaceholder size={64} label={streamer.nom_affiche || streamer.twitch_login} imgSrc={streamer.avatar_url} />
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: C.text, letterSpacing: 1, margin: 0 }}>{streamer.nom_affiche || streamer.twitch_login}</h1>
+            {streamer.verified && <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.green }}><Check size={13} /> Vérifié</span>}
+          </div>
+          <div style={{ fontSize: 12.5, color: C.dim2 }}>twitch.tv/{streamer.twitch_login}{streamer.verified && streamer.followers_count != null ? ` · ${streamer.followers_count.toLocaleString("fr-FR")} followers` : ""}</div>
+        </div>
+      </div>
+
+      {latestScore ? (
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, marginBottom: 20 }}>
+          <StreamerScoreBadge score={latestScore.score_forme} />
+          {latestScore.is_provisional && <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 6 }}>Classement provisoire — encore peu de streams enregistrés.</div>}
+          {sparkData.length > 1 && (
+            <div style={{ height: 120, marginTop: 16 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={sparkData}>
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: C.dim2 }} axisLine={{ stroke: C.border }} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: C.dim2 }} axisLine={false} tickLine={false} width={26} />
+                  <Tooltip contentStyle={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
+                  <Line type="monotone" dataKey="score" stroke={C.gold} strokeWidth={2} dot={{ r: 3, fill: C.gold }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ color: C.dim2, fontSize: 13, marginBottom: 20 }}>Pas encore assez de streams clos pour calculer un score.</div>
+      )}
+
+      {!streamer.verified && (
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12.5, color: C.dim, maxWidth: 420 }}>Ce streamer n'a pas encore connecté son compte Twitch (badge vérifié + nombre de followers).</div>
+          <button onClick={connectTwitch} disabled={connecting} style={{
+            display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, padding: "9px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+            background: "#9146FF", color: "#fff", fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, opacity: connecting ? 0.6 : 1,
+          }}><ExternalLink size={13} /> CONNECTER TWITCH</button>
+        </div>
+      )}
+
+      <SectionTitle>DERNIERS STREAMS</SectionTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {streams.map((s) => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5 }}>
+            <span style={{ color: C.dim }}>{new Date(s.started_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}</span>
+            <span style={{ color: C.text }}>{s.viewers_moyens ? Math.round(s.viewers_moyens).toLocaleString("fr-FR") : "—"} viewers moy.</span>
+            <span style={{ color: C.dim2 }}>Pic {s.pic_viewers ? Math.round(s.pic_viewers).toLocaleString("fr-FR") : "—"}</span>
+            {s.is_event && <span style={{ fontSize: 10, color: C.gold, background: "rgba(240,180,41,0.12)", borderRadius: 8, padding: "1px 7px" }}>événement</span>}
+            {s.is_outlier_flagged && !s.is_event && <span style={{ fontSize: 10, color: C.red, background: "rgba(224,87,74,0.12)", borderRadius: 8, padding: "1px 7px" }}>pic atypique</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Admin : gestion des streamers suivis ----------
+function StreamersAdminTab({ onOpenStreamer }) {
+  const [streamers, setStreamers] = useState([]);
+  const [newLogin, setNewLogin] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    try { setStreamers(await api.fetchTrackedStreamersAdmin()); } catch (e) { console.error(e); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    setErr("");
+    if (!newLogin.trim()) return;
+    setAdding(true);
+    try { await api.addTrackedStreamer(newLogin); setNewLogin(""); await load(); }
+    catch (e) { setErr(e.message || "Erreur lors de l'ajout"); }
+    finally { setAdding(false); }
+  };
+
+  const toggleTracked = async (s) => { await api.setStreamerTracked(s.id, !s.tracked); await load(); };
+  const remove = async (s) => {
+    if (!window.confirm(`Retirer ${s.twitch_login} du suivi ? Son historique sera supprimé.`)) return;
+    await api.deleteStreamer(s.id); await load();
+  };
+
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720 }}>
+      <SectionTitle>STREAMERS SUIVIS ({streamers.length})</SectionTitle>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input value={newLogin} onChange={(e) => setNewLogin(e.target.value)} placeholder="login Twitch (ex: kenji_stream)"
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          style={{ flex: 1, padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+        <GoldButton onClick={handleAdd} disabled={adding}>{adding ? "Ajout..." : "Ajouter"}</GoldButton>
+      </div>
+      {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 14 }}>{err}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {streamers.map((s) => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+            <div onClick={() => onOpenStreamer(s.twitch_login)} style={{ cursor: "pointer", fontSize: 13, color: C.text }}>
+              {s.twitch_login} {s.verified && <Check size={12} color={C.green} style={{ verticalAlign: "middle" }} />} {!s.tracked && <span style={{ fontSize: 10.5, color: C.dim2 }}>(en pause)</span>}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => toggleTracked(s)} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 16, border: "none", cursor: "pointer", background: C.panel2, color: C.dim }}>
+                {s.tracked ? "Mettre en pause" : "Réactiver"}
+              </button>
+              <button onClick={() => remove(s)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 16, border: "none", cursor: "pointer", background: "rgba(224,87,74,0.12)", color: C.red }}>
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function VideoSearchModal({ comic, onClose }) {
   const [query, setQuery] = useState(`${comic.nom} humour spectacle`);
   const [results, setResults] = useState([]);
@@ -2158,7 +2403,7 @@ function AdminCombatTab() {
   );
 }
 
-function AdminPage({ onRefreshPublic, onOpenComic }) {
+function AdminPage({ onRefreshPublic, onOpenComic, onOpenStreamer }) {
   const [comics, setComics] = useState([]);
   const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "" });
   const [categories, setCategories] = useState([]);
@@ -2348,10 +2593,17 @@ function AdminPage({ onRefreshPublic, onOpenComic }) {
           background: adminTab === "combat" ? C.gold : C.panel2, color: adminTab === "combat" ? "#1A1509" : C.dim,
           fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
         }}>COMBAT</button>
+        <button onClick={() => setAdminTab("streamers")} style={{
+          fontSize: 12.5, padding: "8px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+          background: adminTab === "streamers" ? C.gold : C.panel2, color: adminTab === "streamers" ? "#1A1509" : C.dim,
+          fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
+        }}>STREAMERS</button>
       </div>
 
       {adminTab === "combat" ? (
         <AdminCombatTab />
+      ) : adminTab === "streamers" ? (
+        <StreamersAdminTab onOpenStreamer={onOpenStreamer} />
       ) : adminTab === "avis" ? (
         <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720 }}>
           <SectionTitle>AVIS EN ATTENTE ({pendingReviews.length})</SectionTitle>
@@ -2559,6 +2811,7 @@ export default function App() {
   useEffect(() => {
     const path = window.location.pathname.replace(/^\/|\/$/g, "");
     if (!path || path.startsWith("genre/") || path.startsWith("match/")) return; // gérés par l'effet dédié ci-dessous, une fois les humoristes chargés
+    if (path.startsWith("streamers/")) { setNav({ page: "streamerDetail", twitchLogin: path.slice("streamers/".length) }); return; }
     const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
     if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
     api.fetchComicBySlug(path).then((c) => {
@@ -2609,6 +2862,7 @@ export default function App() {
         if (a && b) setNav({ page: "match", comicAId: a.id, comicBId: b.id, matchSlug: slug });
         return;
       }
+      if (path.startsWith("streamers/")) { setNav({ page: "streamerDetail", twitchLogin: path.slice("streamers/".length) }); return; }
       const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
       if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
       const c = comics.find((x) => x.slug === path);
@@ -2636,6 +2890,7 @@ export default function App() {
     if (n.page === "genre") return `/genre/${slugifyGenre(n.genre)}`;
     if (n.page === "match") return `/match/${n.matchSlug}`;
     if (n.page === "detail") return n.slug ? `/${n.slug}` : "/";
+    if (n.page === "streamerDetail") return `/streamers/${n.twitchLogin}`;
     return PAGE_PATHS[n.page] || "/";
   }, []);
 
@@ -2671,6 +2926,12 @@ export default function App() {
     const slug = slugifyGenre(genre);
     window.history.pushState({}, "", `/genre/${slug}`);
     setNav({ page: "genre", genre });
+  }, []);
+
+  // Ouvre la fiche d'un streamer (module Streamers, phase privée — accessible par URL directe).
+  const openStreamerDetail = useCallback((twitchLogin) => {
+    window.history.pushState({}, "", `/streamers/${twitchLogin}`);
+    setNav((prev) => ({ page: "streamerDetail", twitchLogin, from: prev.page === "streamerDetail" ? prev.from : prev }));
   }, []);
 
   // Change de page ET met à jour l'URL du navigateur (accueil, classements, humoristes, contact, mon espace, admin).
@@ -2733,7 +2994,9 @@ export default function App() {
       )}
       {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={openComic} />}
       {nav.page === "contact" && <ContactPage />}
-      {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={openComic} />}
+      {nav.page === "streamers" && <StreamersRankingPage onOpenStreamer={openStreamerDetail} />}
+      {nav.page === "streamerDetail" && <StreamerDetailPage twitchLogin={nav.twitchLogin} onBack={goBack} />}
+      {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={openComic} onOpenStreamer={openStreamerDetail} />}
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthed={refreshAuth} />}
 
