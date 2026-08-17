@@ -1946,6 +1946,9 @@ function StreamersRankingPage({ onOpenStreamer }) {
                     {s.score.is_provisional && <span style={{ fontSize: 10, color: C.dim2, background: C.panel2, borderRadius: 8, padding: "1px 7px" }}>provisoire</span>}
                   </div>
                   <div style={{ fontSize: 12, color: label.color }}>{label.text}</div>
+                  {s.verified && s.followers_count != null && (
+                    <div style={{ fontSize: 11, color: C.dim2 }}>{s.followers_count.toLocaleString("fr-FR")} followers</div>
+                  )}
                 </div>
                 <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: label.color }}>{Math.round(s.score.score_forme)}</div>
               </div>
