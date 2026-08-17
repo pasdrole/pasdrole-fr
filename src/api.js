@@ -614,3 +614,24 @@ export function getTwitchConnectUrl(streamerId) {
   });
   return `https://id.twitch.tv/oauth2/authorize?${params.toString()}`;
 }
+
+// ---------- Notation des VOD streamers (même pattern que video_ratings pour les comédiens) ----------
+export async function fetchStreamVodRatings(streamId) {
+  const { data, error } = await supabase.from("stream_vod_ratings").select("rating").eq("stream_id", streamId);
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchMyStreamVodRating(streamId, userId) {
+  const { data, error } = await supabase.from("stream_vod_ratings").select("*").eq("stream_id", streamId).eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertStreamVodRating(streamId, userId, rating) {
+  const { error } = await supabase.from("stream_vod_ratings").upsert(
+    { stream_id: streamId, user_id: userId, rating, updated_at: new Date().toISOString() },
+    { onConflict: "stream_id,user_id" }
+  );
+  if (error) throw error;
+}
