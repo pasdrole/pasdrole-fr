@@ -1829,6 +1829,68 @@ function ContactPage() {
   );
 }
 
+function StreamVodBlock({ stream, user, onRequireAuth }) {
+  const [allRatings, setAllRatings] = useState([]);
+  const [myRating, setMyRating] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const all = await api.fetchStreamVodRatings(stream.id);
+      setAllRatings(all);
+      if (user) {
+        const mine = await api.fetchMyStreamVodRating(stream.id, user.id);
+        setMyRating(mine?.rating || 0);
+      }
+    } catch (e) {
+      console.error("Erreur notes VOD:", e);
+    }
+  }, [stream.id, user]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const avg = allRatings.length ? allRatings.reduce((a, b) => a + b.rating, 0) / allRatings.length : 0;
+
+  const rate = async (n) => {
+    if (!user) return onRequireAuth();
+    setSaving(true);
+    try {
+      await api.upsertStreamVodRating(stream.id, user.id, n);
+      setMyRating(n);
+      await load();
+    } catch (e) {
+      console.error("Erreur enregistrement note VOD:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Miniature Twitch : le template renvoyé par l'API contient %{width}x%{height} à remplacer.
+  const thumbUrl = stream.vod_thumbnail_url ? stream.vod_thumbnail_url.replace("%{width}", "440").replace("%{height}", "248") : null;
+  const vodUrl = stream.vod_video_id ? `https://www.twitch.tv/videos/${stream.vod_video_id}` : null;
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <a href={vodUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 10, overflow: "hidden", marginBottom: 8, background: C.panel2 }}>
+        {thumbUrl && <img src={thumbUrl} alt={stream.vod_title || "VOD"} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.15)" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#9146FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ExternalLink size={18} color="#fff" />
+          </div>
+        </div>
+      </a>
+      <div style={{ fontSize: 12.5, color: C.text, marginBottom: 2 }}>{stream.vod_title || `Stream du ${new Date(stream.started_at).toLocaleDateString("fr-FR")}`}</div>
+      <div style={{ fontSize: 11, color: C.dim2, marginBottom: 6 }}>{new Date(stream.started_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long" })}{stream.vod_views != null ? ` · ${stream.vod_views.toLocaleString("fr-FR")} vues` : ""}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <VideoStars value={myRating} size={16} interactive={!saving} onRate={rate} />
+        <span style={{ fontSize: 11, color: C.dim2 }}>
+          {avg > 0 ? `${avg.toFixed(1)}/5 (${allRatings.length} vote${allRatings.length !== 1 ? "s" : ""})` : "Pas encore noté"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Streamers (Indice de Forme) — phase privée : pages non liées dans la nav,
 // en noindex, accessibles seulement par URL directe (admin, ou lien envoyé en outreach). ----------
 
@@ -1895,7 +1957,7 @@ function StreamersRankingPage({ onOpenStreamer }) {
   );
 }
 
-function StreamerDetailPage({ twitchLogin, onBack }) {
+function StreamerDetailPage({ twitchLogin, onBack, user, onRequireAuth }) {
   const [data, setData] = useState(null);
   const [connecting, setConnecting] = useState(false);
 
@@ -1974,13 +2036,18 @@ function StreamerDetailPage({ twitchLogin, onBack }) {
       <SectionTitle>DERNIERS STREAMS</SectionTitle>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {streams.map((s) => (
-          <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5 }}>
-            <span style={{ color: C.dim }}>{new Date(s.started_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}</span>
-            <span style={{ color: C.text }}>{s.viewers_moyens ? Math.round(s.viewers_moyens).toLocaleString("fr-FR") : "—"} viewers moy.</span>
-            <span style={{ color: C.dim2 }}>Pic {s.pic_viewers ? Math.round(s.pic_viewers).toLocaleString("fr-FR") : "—"}</span>
-            {s.is_event && <span style={{ fontSize: 10, color: C.gold, background: "rgba(240,180,41,0.12)", borderRadius: 8, padding: "1px 7px" }}>événement</span>}
-            {s.is_outlier_flagged && !s.is_event && <span style={{ fontSize: 10, color: C.red, background: "rgba(224,87,74,0.12)", borderRadius: 8, padding: "1px 7px" }}>pic atypique</span>}
-          </div>
+          s.vod_video_id ? (
+            <StreamVodBlock key={s.id} stream={s} user={user} onRequireAuth={onRequireAuth} />
+          ) : (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5 }}>
+              <span style={{ color: C.dim }}>{new Date(s.started_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}</span>
+              <span style={{ color: C.text }}>{s.viewers_moyens ? Math.round(s.viewers_moyens).toLocaleString("fr-FR") : "—"} viewers moy.</span>
+              <span style={{ color: C.dim2 }}>Pic {s.pic_viewers ? Math.round(s.pic_viewers).toLocaleString("fr-FR") : "—"}</span>
+              {s.is_event && <span style={{ fontSize: 10, color: C.gold, background: "rgba(240,180,41,0.12)", borderRadius: 8, padding: "1px 7px" }}>événement</span>}
+              {s.is_outlier_flagged && !s.is_event && <span style={{ fontSize: 10, color: C.red, background: "rgba(224,87,74,0.12)", borderRadius: 8, padding: "1px 7px" }}>pic atypique</span>}
+              <span style={{ fontSize: 10, color: C.dim2 }}>VOD pas encore dispo (48-96h)</span>
+            </div>
+          )
         ))}
       </div>
     </div>
@@ -2995,7 +3062,7 @@ export default function App() {
       {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={openComic} />}
       {nav.page === "contact" && <ContactPage />}
       {nav.page === "streamers" && <StreamersRankingPage onOpenStreamer={openStreamerDetail} />}
-      {nav.page === "streamerDetail" && <StreamerDetailPage twitchLogin={nav.twitchLogin} onBack={goBack} />}
+      {nav.page === "streamerDetail" && <StreamerDetailPage twitchLogin={nav.twitchLogin} onBack={goBack} user={user} onRequireAuth={() => setShowAuth(true)} />}
       {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={openComic} onOpenStreamer={openStreamerDetail} />}
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthed={refreshAuth} />}
