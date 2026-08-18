@@ -605,10 +605,25 @@ export async function fetchStreamersRanking() {
   const latestByStreamer = {};
   (scores || []).forEach((s) => { if (!latestByStreamer[s.streamer_id]) latestByStreamer[s.streamer_id] = s; });
 
+  // Streams actuellement en cours, pour poser le badge "en direct" sur la liste complète.
+  const { data: liveStreams, error: liveError } = await supabase
+    .from("streams")
+    .select("streamer_id, started_at")
+    .eq("status", "en_cours")
+    .in("streamer_id", streamers.map((s) => s.id));
+  if (liveError) throw liveError;
+  const liveByStreamer = {};
+  (liveStreams || []).forEach((s) => { liveByStreamer[s.streamer_id] = s; });
+
   return streamers
-    .map((s) => ({ ...s, score: latestByStreamer[s.id] || null }))
-    .filter((s) => s.score) // pas encore de score = pas assez de streams clos, hors classement
-    .sort((a, b) => b.score.score_forme - a.score.score_forme);
+    .map((s) => ({ ...s, score: latestByStreamer[s.id] || null, live: liveByStreamer[s.id] || null }))
+    .sort((a, b) => {
+      if (!!b.live !== !!a.live) return (b.live ? 1 : 0) - (a.live ? 1 : 0);
+      if (a.score && b.score) return b.score.score_forme - a.score.score_forme;
+      if (a.score) return -1;
+      if (b.score) return 1;
+      return (a.nom_affiche || a.twitch_login).localeCompare(b.nom_affiche || b.twitch_login);
+    });
 }
 
 // Fiche détail d'un streamer : infos + historique de score (pour le sparkline) + derniers streams.
