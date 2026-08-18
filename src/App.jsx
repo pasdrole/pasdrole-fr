@@ -1915,43 +1915,69 @@ function StreamerScoreBadge({ score, size = 15 }) {
 function StreamersRankingPage({ onOpenStreamer }) {
   const [ranking, setRanking] = useState(null);
 
-  useEffect(() => {
-    applySEO({ title: `Top Forme Streamers | ${SITE_NAME}`, description: "Classement de forme des streamers français, basé sur leurs 5 derniers lives — pas juste sur leur taille.", url: `${window.location.origin}/streamers` });
+  const load = useCallback(() => {
     api.fetchStreamersRanking().then(setRanking).catch((e) => { console.error("Erreur classement streamers:", e); setRanking([]); });
   }, []);
 
-  if (ranking === null) return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement du classement...</div>;
+  useEffect(() => {
+    applySEO({ title: `Streamers | ${SITE_NAME}`, description: "Tous les streamers suivis par PasDrôle, en direct ou non, avec leur classement de forme.", url: `${window.location.origin}/streamers` });
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  if (ranking === null) return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement...</div>;
+
+  const formatDuree = (startedAt) => {
+    const mins = Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000);
+    if (mins < 60) return `${mins} min`;
+    return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}`;
+  };
 
   return (
     <div style={{ maxWidth: 820, margin: "0 auto", padding: "40px 24px 60px" }}>
-      <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, letterSpacing: 1, marginBottom: 6 }}>TOP FORME — STREAMERS</h1>
-      <p style={{ color: C.dim, fontSize: 14, marginBottom: 26 }}>Pas qui est le plus gros. Qui performe le mieux en ce moment, sur ses 5 derniers lives.</p>
+      <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, letterSpacing: 1, marginBottom: 6 }}>STREAMERS</h1>
+      <p style={{ color: C.dim, fontSize: 14, marginBottom: 26 }}>Qui est en direct maintenant, et qui performe le mieux sur ses 5 derniers lives.</p>
 
       {ranking.length === 0 ? (
-        <div style={{ color: C.dim2, fontSize: 13 }}>Aucun streamer avec assez de données pour l'instant.</div>
+        <div style={{ color: C.dim2, fontSize: 13 }}>Aucun streamer suivi pour l'instant.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {ranking.map((s, idx) => {
-            const label = scoreLabel(s.score.score_forme);
+          {ranking.map((s) => {
+            const label = s.score ? scoreLabel(s.score.score_forme) : null;
             return (
               <div key={s.id} onClick={() => onOpenStreamer(s.twitch_login)} style={{
-                display: "flex", alignItems: "center", gap: 14, background: C.panel, border: `1px solid ${C.border}`,
-                borderRadius: 12, padding: "14px 18px", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 14, background: C.panel,
+                border: `1px solid ${s.live ? C.red : C.border}`, borderRadius: 12, padding: "14px 18px", cursor: "pointer",
               }}>
-                <div style={{ width: 26, textAlign: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: C.dim2 }}>{idx + 1}</div>
-                <PhotoPlaceholder size={44} label={s.nom_affiche || s.twitch_login} imgSrc={s.avatar_url} />
+                <div style={{ position: "relative" }}>
+                  <PhotoPlaceholder size={44} label={s.nom_affiche || s.twitch_login} imgSrc={s.avatar_url} />
+                  {s.live && (
+                    <span style={{
+                      position: "absolute", bottom: -3, right: -3, width: 14, height: 14, borderRadius: "50%",
+                      background: C.red, border: `2px solid ${C.panel}`,
+                    }} />
+                  )}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 14, color: C.text, fontWeight: 600 }}>{s.nom_affiche || s.twitch_login}</span>
                     {s.verified && <Check size={13} color={C.green} />}
-                    {s.score.is_provisional && <span style={{ fontSize: 10, color: C.dim2, background: C.panel2, borderRadius: 8, padding: "1px 7px" }}>provisoire</span>}
+                    {s.live && (
+                      <span style={{ fontSize: 10, color: "#fff", background: C.red, borderRadius: 8, padding: "1px 7px", fontWeight: 700, letterSpacing: 0.3 }}>
+                        ● EN DIRECT
+                      </span>
+                    )}
+                    {s.score?.is_provisional && <span style={{ fontSize: 10, color: C.dim2, background: C.panel2, borderRadius: 8, padding: "1px 7px" }}>provisoire</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: label.color }}>{label.text}</div>
+                  <div style={{ fontSize: 12, color: label ? label.color : C.dim2 }}>
+                    {s.live ? `En direct depuis ${formatDuree(s.live.started_at)}` : label ? label.text : "Pas encore assez de données"}
+                  </div>
                   {s.verified && s.followers_count != null && (
                     <div style={{ fontSize: 11, color: C.dim2 }}>{s.followers_count.toLocaleString("fr-FR")} followers</div>
                   )}
                 </div>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: label.color }}>{Math.round(s.score.score_forme)}</div>
+                {s.score && <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: label.color }}>{Math.round(s.score.score_forme)}</div>}
               </div>
             );
           })}
