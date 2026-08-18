@@ -2059,6 +2059,51 @@ function StreamerDetailPage({ twitchLogin, onBack, user, onRequireAuth }) {
 }
 
 // ---------- Admin : gestion des streamers suivis ----------
+function LiveStreamsPanel() {
+  const [live, setLive] = useState(null);
+
+  const load = useCallback(async () => {
+    try { setLive(await api.fetchLiveStreams()); } catch (e) { console.error(e); setLive([]); }
+  }, []);
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  const formatDuree = (startedAt) => {
+    const mins = Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000);
+    if (mins < 60) return `${mins} min`;
+    return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}`;
+  };
+
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: live && live.length ? C.red : C.dim2, display: "inline-block" }} />
+        <SectionTitle>EN DIRECT MAINTENANT {live ? `(${live.length})` : ""}</SectionTitle>
+      </div>
+      {live === null && <div style={{ fontSize: 12.5, color: C.dim }}>Chargement...</div>}
+      {live && live.length === 0 && <div style={{ fontSize: 12.5, color: C.dim }}>Aucun streamer suivi n'est en direct actuellement.</div>}
+      {live && live.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {live.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13, color: C.text }}>
+                {s.nomAffiche} <span style={{ fontSize: 11, color: C.dim2 }}>· en direct depuis {formatDuree(s.startedAt)}</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: C.gold, fontWeight: 600 }}>
+                {s.viewers != null ? `${s.viewers.toLocaleString("fr-FR")} viewers` : "—"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 10.5, color: C.dim2, marginTop: 12 }}>Actualisé automatiquement toutes les 60 secondes.</div>
+    </div>
+  );
+}
+
 function StreamersAdminTab({ onOpenStreamer }) {
   const [streamers, setStreamers] = useState([]);
   const [newLogin, setNewLogin] = useState("");
@@ -2086,31 +2131,34 @@ function StreamersAdminTab({ onOpenStreamer }) {
   };
 
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720 }}>
-      <SectionTitle>STREAMERS SUIVIS ({streamers.length})</SectionTitle>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <input value={newLogin} onChange={(e) => setNewLogin(e.target.value)} placeholder="login Twitch (ex: kenji_stream)"
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          style={{ flex: 1, padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
-        <GoldButton onClick={handleAdd} disabled={adding}>{adding ? "Ajout..." : "Ajouter"}</GoldButton>
-      </div>
-      {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 14 }}>{err}</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {streamers.map((s) => (
-          <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
-            <div onClick={() => onOpenStreamer(s.twitch_login)} style={{ cursor: "pointer", fontSize: 13, color: C.text }}>
-              {s.twitch_login} {s.verified && <Check size={12} color={C.green} style={{ verticalAlign: "middle" }} />} {!s.tracked && <span style={{ fontSize: 10.5, color: C.dim2 }}>(en pause)</span>}
+    <div>
+      <LiveStreamsPanel />
+      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, maxWidth: 720 }}>
+        <SectionTitle>STREAMERS SUIVIS ({streamers.length})</SectionTitle>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <input value={newLogin} onChange={(e) => setNewLogin(e.target.value)} placeholder="login Twitch (ex: kenji_stream)"
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            style={{ flex: 1, padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+          <GoldButton onClick={handleAdd} disabled={adding}>{adding ? "Ajout..." : "Ajouter"}</GoldButton>
+        </div>
+        {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 14 }}>{err}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {streamers.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+              <div onClick={() => onOpenStreamer(s.twitch_login)} style={{ cursor: "pointer", fontSize: 13, color: C.text }}>
+                {s.twitch_login} {s.verified && <Check size={12} color={C.green} style={{ verticalAlign: "middle" }} />} {!s.tracked && <span style={{ fontSize: 10.5, color: C.dim2 }}>(en pause)</span>}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => toggleTracked(s)} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 16, border: "none", cursor: "pointer", background: C.panel2, color: C.dim }}>
+                  {s.tracked ? "Mettre en pause" : "Réactiver"}
+                </button>
+                <button onClick={() => remove(s)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 16, border: "none", cursor: "pointer", background: "rgba(224,87,74,0.12)", color: C.red }}>
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => toggleTracked(s)} style={{ fontSize: 11, padding: "5px 12px", borderRadius: 16, border: "none", cursor: "pointer", background: C.panel2, color: C.dim }}>
-                {s.tracked ? "Mettre en pause" : "Réactiver"}
-              </button>
-              <button onClick={() => remove(s)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 16, border: "none", cursor: "pointer", background: "rgba(224,87,74,0.12)", color: C.red }}>
-                <Trash2 size={12} />
-              </button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
