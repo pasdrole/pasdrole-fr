@@ -540,6 +540,37 @@ export async function fetchTrackedStreamersAdmin() {
   return data || [];
 }
 
+// Streams actuellement en direct, avec le dernier relevé de viewers de chacun.
+export async function fetchLiveStreams() {
+  const { data: streams, error } = await supabase
+    .from("streams")
+    .select("id, started_at, streamer_id, streamers(nom_affiche, twitch_login, avatar_url)")
+    .eq("status", "en_cours")
+    .order("started_at", { ascending: false });
+  if (error) throw error;
+  if (!streams || !streams.length) return [];
+
+  const withViewers = await Promise.all(streams.map(async (s) => {
+    const { data: snaps } = await supabase
+      .from("stream_snapshots")
+      .select("viewers_count, captured_at")
+      .eq("stream_id", s.id)
+      .order("captured_at", { ascending: false })
+      .limit(1);
+    const last = snaps && snaps[0];
+    return {
+      id: s.id,
+      startedAt: s.started_at,
+      nomAffiche: s.streamers?.nom_affiche || s.streamers?.twitch_login,
+      twitchLogin: s.streamers?.twitch_login,
+      avatarUrl: s.streamers?.avatar_url,
+      viewers: last ? last.viewers_count : null,
+      lastSnapshotAt: last ? last.captured_at : null,
+    };
+  }));
+  return withViewers;
+}
+
 export async function addTrackedStreamer(twitchLogin) {
   const login = twitchLogin.trim().toLowerCase();
   if (!login) throw new Error("Login Twitch requis");
