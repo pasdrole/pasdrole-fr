@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
-  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe, Share,
+  FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe, Share, Video,
 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "./supabaseClient";
@@ -372,6 +372,7 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
     { key: "home", label: "Accueil", icon: Home },
     { key: "ranking", label: "Classements", icon: LayoutGrid },
     { key: "comics", label: "Humoristes", icon: Users },
+    { key: "streamers", label: "Streamers", icon: Video },
     { key: "contact", label: "Contact", icon: Mail },
   ];
   const [showDropdown, setShowDropdown] = useState(false);
@@ -1915,7 +1916,7 @@ function StreamersRankingPage({ onOpenStreamer }) {
   const [ranking, setRanking] = useState(null);
 
   useEffect(() => {
-    applySEO({ title: `Top Forme Streamers | ${SITE_NAME}`, description: "Classement de forme des streamers français, basé sur leurs 5 derniers lives — pas juste sur leur taille.", noindex: true });
+    applySEO({ title: `Top Forme Streamers | ${SITE_NAME}`, description: "Classement de forme des streamers français, basé sur leurs 5 derniers lives — pas juste sur leur taille.", url: `${window.location.origin}/streamers` });
     api.fetchStreamersRanking().then(setRanking).catch((e) => { console.error("Erreur classement streamers:", e); setRanking([]); });
   }, []);
 
