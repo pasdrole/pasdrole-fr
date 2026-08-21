@@ -17,6 +17,11 @@ const C = {
 // Correspondance page interne <-> URL propre (pour le référencement et le partage de liens).
 const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", contact: "/contact", mine: "/mon-espace", admin: "/admin", streamers: "/streamers" };
 
+// Rubrique Streamers : masquée au public tant que la donnée n'est pas assez riche.
+// Passe ce flag à true quand tu veux la rouvrir à tout le monde.
+// En attendant, seul le compte admin continue de la voir (nav + pages), pour pouvoir la tester.
+const STREAMERS_PUBLIC = false;
+
 // Empreinte navigateur simple (anti-fraude "Sur le ring", en complément de l'IP vérifiée côté serveur).
 // Ne cherche pas à être infalsifiable — juste à rendre le "vider son localStorage pour revoter" inefficace.
 // Calculée une fois et mise en cache en session (pas besoin de la recalculer à chaque vote).
@@ -372,7 +377,7 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
     { key: "home", label: "Accueil", icon: Home },
     { key: "ranking", label: "Classements", icon: LayoutGrid },
     { key: "comics", label: "Humoristes", icon: Users },
-    { key: "streamers", label: "Streamers", icon: Video },
+    ...(STREAMERS_PUBLIC || profile?.role === "admin" ? [{ key: "streamers", label: "Streamers", icon: Video }] : []),
     { key: "contact", label: "Contact", icon: Mail },
   ];
   const [showDropdown, setShowDropdown] = useState(false);
@@ -3139,8 +3144,8 @@ export default function App() {
       )}
       {nav.page === "mine" && user && <MyActivityPage user={user} profile={profile} onOpenComic={openComic} />}
       {nav.page === "contact" && <ContactPage />}
-      {nav.page === "streamers" && <StreamersRankingPage onOpenStreamer={openStreamerDetail} />}
-      {nav.page === "streamerDetail" && <StreamerDetailPage twitchLogin={nav.twitchLogin} onBack={goBack} user={user} onRequireAuth={() => setShowAuth(true)} />}
+      {nav.page === "streamers" && (STREAMERS_PUBLIC || profile?.role === "admin") && <StreamersRankingPage onOpenStreamer={openStreamerDetail} />}
+      {nav.page === "streamerDetail" && (STREAMERS_PUBLIC || profile?.role === "admin") && <StreamerDetailPage twitchLogin={nav.twitchLogin} onBack={goBack} user={user} onRequireAuth={() => setShowAuth(true)} />}
       {nav.page === "admin" && profile?.role === "admin" && <AdminPage onRefreshPublic={loadPublicComics} onOpenComic={openComic} onOpenStreamer={openStreamerDetail} />}
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthed={refreshAuth} />}
