@@ -945,7 +945,7 @@ function RedactionCard({ comic }) {
       border: `1px solid rgba(240,180,41,0.35)`, borderRadius: 14, padding: 22,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 1, color: C.gold }}>L'AVIS DE MIKE</span>
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, letterSpacing: 1, color: C.gold }}>L'AVIS DE MIKE</span>
       </div>
       {comic.note_redaction != null && (() => {
         const expression = MIKE_EXPRESSION_BY_SLUG[comic.expression_redaction];
@@ -1896,7 +1896,10 @@ function ContactPage() {
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto", padding: "40px 24px 60px" }}>
-      <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, letterSpacing: 1, marginBottom: 6 }}>CONTACT</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 6 }}>
+        <img src="/04_pouce_en_lair.svg" alt="Mike pouce en l'air" style={{ width: 84, height: "auto", flexShrink: 0 }} />
+        <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, letterSpacing: 1, margin: 0 }}>CONTACT</h1>
+      </div>
       <p style={{ color: C.dim, fontSize: 14, marginBottom: 26 }}>Une question, une suggestion, un souci sur une fiche ? Écris-nous.</p>
 
       {sent ? (
