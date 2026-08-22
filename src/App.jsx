@@ -1086,6 +1086,36 @@ function CombatResultsCard({ comic, combats }) {
   );
 }
 
+// Sélection d'émoticônes proposée dans le champ "Laisser un avis" — un ton fun/comique
+// cohérent avec le site (rire, ennui, nul, applaudissement...), pas un clavier emoji complet.
+const REVIEW_EMOJIS = ["😂", "🤣", "😐", "🥱", "🤮", "💩", "👏", "🔥", "😴", "🤡", "💀", "👍", "👎", "😍"];
+
+function EmojiPickerRow({ onPick }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+      {REVIEW_EMOJIS.map((e) => (
+        <button
+          key={e}
+          type="button"
+          onClick={() => onPick(e)}
+          title="Insérer"
+          style={{
+            fontSize: 17,
+            lineHeight: 1,
+            padding: "5px 6px",
+            background: C.bg,
+            border: `1px solid ${C.border}`,
+            borderRadius: 7,
+            cursor: "pointer",
+          }}
+        >
+          {e}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [comic, setComic] = useState(null);
   const [ratings, setRatings] = useState([]);
@@ -1094,6 +1124,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [myReview, setMyReview] = useState(null);
   const [draft, setDraft] = useState({});
   const [reviewDraft, setReviewDraft] = useState("");
+  const reviewTextareaRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -1236,6 +1267,19 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
       setSaving(false);
     }
   };
+  const insertReviewEmoji = (emoji) => {
+    const el = reviewTextareaRef.current;
+    if (!el) { setReviewDraft((d) => d + emoji); return; }
+    const start = el.selectionStart ?? reviewDraft.length;
+    const end = el.selectionEnd ?? reviewDraft.length;
+    const next = reviewDraft.slice(0, start) + emoji + reviewDraft.slice(end);
+    setReviewDraft(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
   const submitReview = async () => {
     if (!user) return onRequireAuth();
     if (!reviewDraft.trim()) return;
@@ -1360,7 +1404,8 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
 
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
             <SectionTitle>{myReview ? "MODIFIER MON AVIS" : "LAISSER UN AVIS"}</SectionTitle>
-            <textarea value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} rows={4} placeholder="Ton avis sur cet humoriste..."
+            <EmojiPickerRow onPick={insertReviewEmoji} />
+            <textarea ref={reviewTextareaRef} value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} rows={4} placeholder="Ton avis sur cet humoriste..."
               style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical", marginBottom: 12 }} />
             <GoldButton full disabled={!reviewDraft.trim() || saving} onClick={submitReview}>{myReview ? "Mettre à jour mon avis" : "Publier mon avis"}</GoldButton>
             {myReview?.status === "pending" && <div style={{ fontSize: 11.5, color: C.gold, marginTop: 10, textAlign: "center" }}>En attente de validation par l'équipe</div>}
