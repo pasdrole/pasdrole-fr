@@ -3,6 +3,7 @@ import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe, Share, Video,
+  ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "./supabaseClient";
@@ -1089,6 +1090,7 @@ function CombatResultsCard({ comic, combats }) {
 // Sélection d'émoticônes proposée dans le champ "Laisser un avis" — un ton fun/comique
 // cohérent avec le site (rire, ennui, nul, applaudissement...), pas un clavier emoji complet.
 const REVIEW_EMOJIS = ["😂", "🤣", "😐", "🥱", "🤮", "💩", "👏", "🔥", "😴", "🤡", "💀", "👍", "👎", "😍"];
+const REVIEW_MAX_LEN = 900;
 
 function EmojiPickerRow({ onPick }) {
   return (
@@ -1122,6 +1124,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [reviews, setReviews] = useState([]);
   const [myRating, setMyRating] = useState(null);
   const [myReview, setMyReview] = useState(null);
+  const [myReviewVotes, setMyReviewVotes] = useState({});
   const [draft, setDraft] = useState({});
   const [reviewDraft, setReviewDraft] = useState("");
   const reviewTextareaRef = useRef(null);
@@ -1233,6 +1236,13 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
           setMyReview(mrv.value);
           setReviewDraft(mrv.value.content);
         }
+        if (rv.status === "fulfilled" && rv.value.length) {
+          try {
+            setMyReviewVotes(await api.fetchMyReviewVotes(rv.value.map((x) => x.id), user.id));
+          } catch (e) {
+            console.error("Erreur chargement de mes votes sur les avis:", e);
+          }
+        }
       }
     } catch (e) {
       console.error("Erreur chargement fiche:", e);
@@ -1285,13 +1295,44 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
     if (!reviewDraft.trim()) return;
     setSaving(true);
     try {
-      await api.upsertReview(comicId, user.id, reviewDraft.trim(), comic?.nom);
+      await api.upsertReview(comicId, user.id, reviewDraft.trim().slice(0, REVIEW_MAX_LEN), comic?.nom);
       await load();
     } catch (e) {
       console.error("Erreur enregistrement avis:", e);
       alert("Impossible d'enregistrer l'avis : " + (e.message || "erreur inconnue"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Pouce haut / pouce bas sur l'avis d'un autre utilisateur. Un second clic sur le même
+  // pouce retire le vote. Mise à jour optimiste des compteurs, resynchro si l'appel échoue.
+  const voteOnReview = async (reviewId, vote) => {
+    if (!user) return onRequireAuth();
+    const current = myReviewVotes[reviewId];
+    const removing = current === vote;
+    setReviews((prev) => prev.map((r) => {
+      if (r.id !== reviewId) return r;
+      let up = r.up || 0, down = r.down || 0;
+      if (current === 1) up = Math.max(0, up - 1);
+      if (current === -1) down = Math.max(0, down - 1);
+      if (!removing) {
+        if (vote === 1) up++; else down++;
+      }
+      return { ...r, up, down };
+    }));
+    setMyReviewVotes((prev) => {
+      const next = { ...prev };
+      if (removing) delete next[reviewId];
+      else next[reviewId] = vote;
+      return next;
+    });
+    try {
+      if (removing) await api.removeReviewVote(reviewId, user.id);
+      else await api.setReviewVote(reviewId, user.id, vote);
+    } catch (e) {
+      console.error("Erreur vote sur avis:", e);
+      await load();
     }
   };
 
@@ -1372,7 +1413,32 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
               {reviews.map((r) => (
                 <div key={r.id} style={{ padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 12.5, color: C.gold, fontWeight: 600, marginBottom: 4 }}>{r.profiles?.pseudo || "Anonyme"}</div>
-                  <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5 }}>{r.content}</div>
+                  <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 8 }}>{r.content}</div>
+                  {(() => {
+                    const isOwn = user && r.user_id === user.id;
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <button onClick={() => voteOnReview(r.id, 1)} disabled={isOwn}
+                          title={isOwn ? "Tu ne peux pas voter sur ton propre avis" : user ? "Utile" : "Connexion requise"} style={{
+                          display: "flex", alignItems: "center", gap: 5, background: "none", cursor: isOwn ? "default" : "pointer",
+                          border: `1px solid ${myReviewVotes[r.id] === 1 ? C.green : C.border}`, borderRadius: 20,
+                          padding: "4px 10px", color: myReviewVotes[r.id] === 1 ? C.green : C.dim2, fontSize: 12,
+                          opacity: isOwn ? 0.5 : 1,
+                        }}>
+                          <ThumbsUp size={13} fill={myReviewVotes[r.id] === 1 ? C.green : "none"} /> {r.up || 0}
+                        </button>
+                        <button onClick={() => voteOnReview(r.id, -1)} disabled={isOwn}
+                          title={isOwn ? "Tu ne peux pas voter sur ton propre avis" : user ? "Pas utile" : "Connexion requise"} style={{
+                          display: "flex", alignItems: "center", gap: 5, background: "none", cursor: isOwn ? "default" : "pointer",
+                          border: `1px solid ${myReviewVotes[r.id] === -1 ? C.red : C.border}`, borderRadius: 20,
+                          padding: "4px 10px", color: myReviewVotes[r.id] === -1 ? C.red : C.dim2, fontSize: 12,
+                          opacity: isOwn ? 0.5 : 1,
+                        }}>
+                          <ThumbsDown size={13} fill={myReviewVotes[r.id] === -1 ? C.red : "none"} /> {r.down || 0}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -1405,8 +1471,11 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
             <SectionTitle>{myReview ? "MODIFIER MON AVIS" : "LAISSER UN AVIS"}</SectionTitle>
             <EmojiPickerRow onPick={insertReviewEmoji} />
-            <textarea ref={reviewTextareaRef} value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} rows={4} placeholder="Ton avis sur cet humoriste..."
-              style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical", marginBottom: 12 }} />
+            <textarea ref={reviewTextareaRef} value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value.slice(0, REVIEW_MAX_LEN))} rows={4} maxLength={REVIEW_MAX_LEN} placeholder="Ton avis sur cet humoriste..."
+              style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical", marginBottom: 4 }} />
+            <div style={{ fontSize: 11, color: reviewDraft.length >= REVIEW_MAX_LEN ? C.gold : C.dim2, textAlign: "right", marginBottom: 12 }}>
+              {reviewDraft.length} / {REVIEW_MAX_LEN}
+            </div>
             <GoldButton full disabled={!reviewDraft.trim() || saving} onClick={submitReview}>{myReview ? "Mettre à jour mon avis" : "Publier mon avis"}</GoldButton>
             {myReview?.status === "pending" && <div style={{ fontSize: 11.5, color: C.gold, marginTop: 10, textAlign: "center" }}>En attente de validation par l'équipe</div>}
             {myReview?.status === "rejected" && <div style={{ fontSize: 11.5, color: C.red, marginTop: 10, textAlign: "center" }}>Cet avis n'a pas été validé</div>}
