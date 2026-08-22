@@ -502,19 +502,37 @@ function overallAvg(ratings) {
   const vals = (ratings || []).map((r) => r.score_global).filter((v) => typeof v === "number" && v > 0);
   return { avg10: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0, votes: (ratings || []).length };
 }
-// Tendance récente d'un humoriste : compare sa moyenne actuelle (toutes notes) à sa moyenne
-// telle qu'elle était il y a `days` jours (calculée sur les seules notes déjà présentes à
-// cette date, via leur updated_at). Ne nécessite aucun stockage d'historique supplémentaire.
-// Retourne null si pas assez de recul (humoriste trop récent / toutes les notes sont récentes).
-function trendFor(ratings, days = 7) {
-  if (!ratings || !ratings.length) return null;
+// Évolution au classement d'un humoriste : compare son rang actuel (parmi tous les humoristes
+// déjà notés, triés par moyenne générale) au rang qu'il aurait eu il y a `days` jours, recalculé
+// à partir des seules notes déjà présentes à cette date (via leur updated_at). Ne nécessite aucun
+// stockage d'historique supplémentaire. `comics` doit contenir { id, avg10, votes, ratings }.
+// Retourne une Map id -> { delta } (delta > 0 = a gagné des places), ou null si pas assez de recul.
+function computeRankTrends(comics, days = 7) {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const older = ratings.filter((r) => r.updated_at && new Date(r.updated_at).getTime() < cutoff);
-  if (!older.length) return null;
-  const { avg10: currentAvg } = overallAvg(ratings);
-  const { avg10: prevAvg } = overallAvg(older);
-  if (!currentAvg || !prevAvg) return null;
-  return { delta: currentAvg - prevAvg };
+
+  const currentRanked = comics
+    .filter((c) => c.votes > 0)
+    .sort((a, b) => b.avg10 - a.avg10 || b.votes - a.votes);
+  const currentRank = new Map(currentRanked.map((c, i) => [c.id, i + 1]));
+
+  const previousRanked = comics
+    .map((c) => {
+      const older = (c.ratings || []).filter((r) => r.updated_at && new Date(r.updated_at).getTime() < cutoff);
+      if (!older.length) return null;
+      const { avg10, votes } = overallAvg(older);
+      return votes > 0 ? { id: c.id, avg10, votes } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.avg10 - a.avg10 || b.votes - a.votes);
+  const previousRank = new Map(previousRanked.map((c, i) => [c.id, i + 1]));
+
+  const trends = new Map();
+  comics.forEach((c) => {
+    const cur = currentRank.get(c.id);
+    const prev = previousRank.get(c.id);
+    trends.set(c.id, cur && prev ? { delta: prev - cur } : null);
+  });
+  return trends;
 }
 
 /* ---------- Hero / listing ---------- */
@@ -560,7 +578,7 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14 }}>
         {ranked.map((c) => {
           const trend = c.trend;
-          const stable = trend && Math.abs(trend.delta) < 0.05;
+          const stable = trend && trend.delta === 0;
           const hasVotes = c.votes > 0;
           const rank = hasVotes ? ++voteRank : null;
           return (
@@ -574,12 +592,12 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
               </div>
             )}
             {trend && (
-              <div title="Évolution sur 7 jours" style={{
+              <div title="Évolution au classement sur 7 jours" style={{
                 position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 2,
                 fontSize: 10.5, fontWeight: 700, color: stable ? C.dim2 : trend.delta > 0 ? C.green : C.red,
               }}>
                 {stable ? <Minus size={11} /> : trend.delta > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                {!stable && (trend.delta > 0 ? "+" : "") + trend.delta.toFixed(1).replace(".", ",")}
+                {!stable && (trend.delta > 0 ? "+" : "-") + Math.abs(trend.delta)}
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "center", marginTop: 10, marginBottom: 12 }}>
@@ -3091,10 +3109,14 @@ export default function App() {
     setNav({ page });
   }, []);
 
-  const comicsWithStats = useMemo(() => comics.map((c) => {
-    const ratings = ratingsByComic[c.id] || [];
-    return { ...c, ...overallAvg(ratings), trend: trendFor(ratings) };
-  }), [comics, ratingsByComic]);
+  const comicsWithStats = useMemo(() => {
+    const base = comics.map((c) => {
+      const ratings = ratingsByComic[c.id] || [];
+      return { ...c, ...overallAvg(ratings), ratings };
+    });
+    const rankTrends = computeRankTrends(base);
+    return base.map((c) => ({ ...c, trend: rankTrends.get(c.id) || null }));
+  }, [comics, ratingsByComic]);
   const filtered = useMemo(() => query.trim() ? comicsWithStats.filter((c) => c.nom.toLowerCase().includes(query.toLowerCase())) : comicsWithStats, [comicsWithStats, query]);
 
   const logout = async () => { await supabase.auth.signOut(); goToPage("home"); };
