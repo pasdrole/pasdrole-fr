@@ -3440,7 +3440,7 @@ export default function App() {
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthed={refreshAuth} />}
 
       <footer style={{ borderTop: `1px solid ${C.border}`, marginTop: 20, padding: "24px", textAlign: "center", color: C.dim2, fontSize: 12 }}>
-        © 2026 PasDrôle.fr
+        © 2026 PasDrôle.FR
       </footer>
     </div>
   );
