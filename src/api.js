@@ -475,6 +475,29 @@ export async function fetchActiveCombat() {
   return { ...data, votesA: votesA || 0, votesB: votesB || 0 };
 }
 
+// Récupère un combat précis par son id — utilisé pour résoudre un lien /combat/{id} partagé,
+// qu'il s'agisse du combat actuellement en cours ou d'un combat déjà terminé.
+export async function fetchCombatById(id) {
+  const { data, error } = await supabase
+    .from("combats")
+    .select(`
+      id, comic_a_id, comic_b_id, is_active, started_at, ended_at, votes_a, votes_b,
+      comic_a:comics!combats_comic_a_id_fkey(id, nom, photo_url, slug),
+      comic_b:comics!combats_comic_b_id_fkey(id, nom, photo_url, slug),
+      winner:comics!combats_winner_id_fkey(id, nom, photo_url, slug)
+    `)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  if (data.is_active) {
+    const { count: votesA } = await supabase.from("match_votes").select("*", { count: "exact", head: true }).eq("combat_id", data.id).eq("winner_id", data.comic_a_id);
+    const { count: votesB } = await supabase.from("match_votes").select("*", { count: "exact", head: true }).eq("combat_id", data.id).eq("winner_id", data.comic_b_id);
+    return { ...data, votesA: votesA || 0, votesB: votesB || 0 };
+  }
+  return { ...data, votesA: data.votes_a || 0, votesB: data.votes_b || 0 };
+}
+
 export async function fetchLastCombat() {
   const { data, error } = await supabase
     .from("combats")
