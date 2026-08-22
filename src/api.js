@@ -465,6 +465,24 @@ export async function fetchCombatHistory() {
   return data || [];
 }
 
+// Combats clôturés auxquels un humoriste donné a participé (peu importe côté A ou B) — utilisé
+// sur sa fiche publique pour afficher un petit palmarès "Sur le ring" (victoires/défaites).
+export async function fetchCombatsForComic(comicId) {
+  const { data, error } = await supabase
+    .from("combats")
+    .select(`
+      id, ended_at, votes_a, votes_b, comic_a_id, comic_b_id,
+      comic_a:comics!combats_comic_a_id_fkey(id, nom, photo_url, slug),
+      comic_b:comics!combats_comic_b_id_fkey(id, nom, photo_url, slug),
+      winner:comics!combats_winner_id_fkey(id, nom, photo_url, slug)
+    `)
+    .eq("is_active", false)
+    .or(`comic_a_id.eq.${comicId},comic_b_id.eq.${comicId}`)
+    .order("ended_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
 // Vote "Sur le ring" : passe par l'Edge Function combat-vote plutôt qu'un insert direct,
 // pour que la vérification anti-fraude (IP hashée côté serveur + empreinte navigateur) soit
 // infalsifiable depuis le client. Le mode Match public (duels aléatoires) reste en insert direct.
