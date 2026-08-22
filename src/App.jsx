@@ -559,7 +559,7 @@ function computeRankTrends(comics, days = 7) {
   comics.forEach((c) => {
     const cur = currentRank.get(c.id);
     const prev = previousRank.get(c.id);
-    trends.set(c.id, cur && prev ? { delta: prev - cur } : null);
+    trends.set(c.id, cur && prev ? { delta: prev - cur, rank: cur } : null);
   });
   return trends;
 }
@@ -572,7 +572,7 @@ function computeRecentRankMoves(comicsWithStats, limit = 10) {
       if (!c.trend || c.trend.delta === 0) return null;
       const timestamps = (c.ratings || []).map((r) => r.updated_at && new Date(r.updated_at).getTime()).filter(Boolean);
       if (!timestamps.length) return null;
-      return { comic: c, delta: c.trend.delta, lastActivity: Math.max(...timestamps) };
+      return { comic: c, delta: c.trend.delta, rank: c.trend.rank, lastActivity: Math.max(...timestamps) };
     })
     .filter(Boolean)
     .sort((a, b) => b.lastActivity - a.lastActivity)
@@ -674,15 +674,18 @@ function RecentRankMovesCard({ comicsWithStats, onOpen }) {
     }}>
       <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>Dernières évolutions</div>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {moves.map(({ comic, delta }) => (
+        {moves.map(({ comic, delta, rank }) => (
           <button key={comic.id} onClick={() => onOpen(comic.id)} style={{
-            width: "100%", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
-            padding: "6px 0", cursor: "pointer", textAlign: "left",
+            width: "100%", display: "flex", alignItems: "center", gap: 9, background: "none", border: "none",
+            padding: "7px 0", cursor: "pointer", textAlign: "left",
           }}>
+            <PhotoPlaceholder size={28} label={comic.nom} imgSrc={comic.photo_url} />
             <span style={{ fontSize: 12.5, color: C.text, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{comic.nom}</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 11.5, fontWeight: 700, color: delta > 0 ? C.green : C.red, flexShrink: 0 }}>
-              {delta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              {(delta > 0 ? "+" : "-") + Math.abs(delta)}
+            <span style={{ display: "flex", alignItems: "baseline", gap: 3, flexShrink: 0 }}>
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: C.gold }}>{rank}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: delta > 0 ? C.green : C.red }}>
+                ({(delta > 0 ? "+" : "-") + Math.abs(delta)})
+              </span>
             </span>
           </button>
         ))}
