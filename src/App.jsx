@@ -50,6 +50,25 @@ const GENRE_OPTIONS = [
   "Physique", "Franc-parler", "Punchlines", "Acteur", "Créateur de contenu",
 ];
 
+// Expressions disponibles pour Mike (comic.expression_redaction) — reprises de la planche
+// de style du mascot. Pas d'illustration dédiée par expression pour l'instant, donc on
+// s'appuie sur un emoji comme représentation légère le temps d'avoir de vrais visuels.
+const MIKE_EXPRESSIONS = [
+  { slug: "heureux", label: "Heureux", emoji: "😄" },
+  { slug: "surpris", label: "Drôlement surpris", emoji: "😲" },
+  { slug: "sceptique", label: "Sceptique", emoji: "🤨" },
+  { slug: "blase", label: "Blasé", emoji: "😑" },
+  { slug: "mdr", label: "Mort de rire", emoji: "🤣" },
+  { slug: "decu", label: "Déçu", emoji: "😞" },
+  { slug: "colere", label: "En colère", emoji: "😠" },
+  { slug: "reflexion", label: "Réflexion", emoji: "🤔" },
+  { slug: "choque", label: "Choqué", emoji: "😱" },
+  { slug: "fier", label: "Fier", emoji: "😌" },
+  { slug: "dormeur", label: "Dormeur", emoji: "😴" },
+  { slug: "sarcastique", label: "Sarcastique", emoji: "😏" },
+];
+const MIKE_EXPRESSION_BY_SLUG = Object.fromEntries(MIKE_EXPRESSIONS.map((e) => [e.slug, e]));
+
 // Correspondances pour retrouver le pays à partir d'un code court (FR, BE...) éventuellement stocké en base.
 const COUNTRY_ALIASES = {
   "fr": "france", "be": "belgique", "ch": "suisse", "ca": "canada", "us": "états-unis", "ma": "maroc",
@@ -916,17 +935,38 @@ function RedactionCard({ comic }) {
       border: `1px solid rgba(240,180,41,0.35)`, borderRadius: 14, padding: 22,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <img src="/logo-mike.png" alt="Mike, mascotte PasDrôle" style={{ width: 34, height: 34, objectFit: "contain", flexShrink: 0 }} />
-        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 1, color: C.gold }}>L'AVIS DE LA RÉDACTION</span>
+        <img src="/logo-mike_tete.png" alt="Mike, mascotte PasDrôle" style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0 }} />
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 1, color: C.gold }}>L'AVIS DE MIKE</span>
       </div>
-      {comic.note_redaction != null && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: comic.avis_redaction ? 14 : 0 }}>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: C.gold }}>
-            {Number(comic.note_redaction).toFixed(1).replace(".", ",")}<span style={{ fontSize: 14, color: C.dim2, fontFamily: "Inter" }}>/10</span>
-          </span>
-          <Micros value={Number(comic.note_redaction)} size={16} />
-        </div>
-      )}
+      {comic.note_redaction != null && (() => {
+        const expression = MIKE_EXPRESSION_BY_SLUG[comic.expression_redaction];
+        // Reprend le look du panneau du logo (fond noir, liseré doré) que Mike "brandit" —
+        // son expression (choisie par l'admin) déborde légèrement sur le panneau, comme sa
+        // tête sur le logo principal. Pas d'illustration par expression pour l'instant : on
+        // s'appuie sur l'emoji correspondant tant qu'il n'y a pas de vrais visuels.
+        return (
+          <div style={{ display: "flex", alignItems: "center", marginBottom: comic.avis_redaction ? 16 : 2 }}>
+            {expression && (
+              <div title={expression.label} style={{
+                width: 54, height: 54, borderRadius: 14, flexShrink: 0, position: "relative", zIndex: 1,
+                marginRight: -14, boxShadow: "0 4px 12px -2px rgba(0,0,0,0.6)", border: `2px solid ${C.bg}`,
+                background: C.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28,
+              }}>
+                {expression.emoji}
+              </div>
+            )}
+            <div style={{
+              background: "#141018", border: `2px solid ${C.gold}`, borderRadius: 10,
+              padding: expression ? "9px 16px 9px 24px" : "9px 16px", display: "flex", alignItems: "baseline", gap: 3,
+            }}>
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: C.gold, lineHeight: 1 }}>
+                {Number(comic.note_redaction).toFixed(1).replace(".", ",")}
+              </span>
+              <span style={{ fontSize: 13, color: C.goldSoft, fontFamily: "Inter" }}>/10</span>
+            </div>
+          </div>
+        );
+      })()}
       {comic.avis_redaction && (
         <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.6, margin: 0 }}>{comic.avis_redaction}</p>
       )}
@@ -2350,6 +2390,7 @@ function EditComicModal({ comic, onClose, onSaved }) {
     category_id: "",
     note_redaction: comic.note_redaction != null ? String(comic.note_redaction) : "",
     avis_redaction: comic.avis_redaction || "",
+    expression_redaction: comic.expression_redaction || "",
   });
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -2428,7 +2469,7 @@ function EditComicModal({ comic, onClose, onSaved }) {
     try {
       const noteRedactionValue = form.note_redaction.trim() === "" ? null : Number(form.note_redaction.replace(",", "."));
       if (noteRedactionValue !== null && (isNaN(noteRedactionValue) || noteRedactionValue < 0 || noteRedactionValue > 10)) {
-        throw new Error("La note de la rédaction doit être comprise entre 0 et 10.");
+        throw new Error("La note de Mike doit être comprise entre 0 et 10.");
       }
       await api.updateComic(comic.id, {
         nom: form.nom.trim(), pays: form.pays, debut: form.debut, genres: form.genres, bio: form.bio,
@@ -2436,6 +2477,7 @@ function EditComicModal({ comic, onClose, onSaved }) {
         spectacles: form.spectaclesRaw.split(",").map((s) => s.trim()).filter(Boolean),
         note_redaction: noteRedactionValue,
         avis_redaction: form.avis_redaction.trim() || null,
+        expression_redaction: form.expression_redaction || null,
       });
       await api.setComicCategory(comic.id, form.category_id || null);
       await onSaved();
@@ -2505,12 +2547,19 @@ function EditComicModal({ comic, onClose, onSaved }) {
         </div>
 
         <div style={{ marginBottom: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 10 }}>Avis de la rédaction (optionnel — affiché avec Mike sur la fiche publique)</div>
-          <input type="number" min="0" max="10" step="0.1" value={form.note_redaction}
-            onChange={(e) => setForm({ ...form, note_redaction: e.target.value })} placeholder="Note /10, ex: 7.5"
-            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, marginBottom: 10 }} />
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 10 }}>Note de Mike (optionnel — affichée avec Mike sur la fiche publique)</div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+            <input type="number" min="0" max="10" step="0.1" value={form.note_redaction}
+              onChange={(e) => setForm({ ...form, note_redaction: e.target.value })} placeholder="Note /10, ex: 7.5"
+              style={{ flex: 1, boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+            <select value={form.expression_redaction} onChange={(e) => setForm({ ...form, expression_redaction: e.target.value })}
+              style={{ flex: 1, boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }}>
+              <option value="">— Expression —</option>
+              {MIKE_EXPRESSIONS.map((exp) => <option key={exp.slug} value={exp.slug}>{exp.emoji} {exp.label}</option>)}
+            </select>
+          </div>
           <textarea value={form.avis_redaction} onChange={(e) => setForm({ ...form, avis_redaction: e.target.value })} rows={4}
-            placeholder="Le petit mot de la rédaction sur cet humoriste..."
+            placeholder="Le petit mot de Mike sur cet humoriste..."
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical" }} />
         </div>
 
