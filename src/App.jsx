@@ -563,6 +563,34 @@ function computeRankTrends(comics, days = 7) {
   });
   return trends;
 }
+// À partir de comicsWithStats (qui portent déjà .trend via computeRankTrends ci-dessus), construit
+// la liste des `limit` humoristes dont le classement a le plus récemment évolué : parmi ceux dont
+// le trend est non nul, triés par date du plus récent avis (le plus récent d'abord).
+function computeRecentRankMoves(comicsWithStats, limit = 10) {
+  return comicsWithStats
+    .map((c) => {
+      if (!c.trend || c.trend.delta === 0) return null;
+      const timestamps = (c.ratings || []).map((r) => r.updated_at && new Date(r.updated_at).getTime()).filter(Boolean);
+      if (!timestamps.length) return null;
+      return { comic: c, delta: c.trend.delta, lastActivity: Math.max(...timestamps) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.lastActivity - a.lastActivity)
+    .slice(0, limit);
+}
+// Formatte un timestamp en "il y a X" relatif, en français.
+function timeAgoFr(timestamp) {
+  const diffMs = Date.now() - timestamp;
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "à l'instant";
+  if (minutes < 60) return `il y a ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `il y a ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `il y a ${days} jour${days > 1 ? "s" : ""}`;
+  const months = Math.floor(days / 30);
+  return `il y a ${months} mois`;
+}
 
 /* ---------- Hero / listing ---------- */
 function Hero({ comicsWithStats }) {
@@ -580,7 +608,7 @@ function Hero({ comicsWithStats }) {
             NOTEZ. CLASSEZ.<br />FAITES ENTENDRE<br /><span style={{ color: C.gold }}>VOTRE RIRE.</span>
           </h1>
           <p style={{ color: C.dim, fontSize: 15.5, marginTop: 18, maxWidth: 440, lineHeight: 1.6 }}>
-            PasDrôle.fr référence les humoristes français et internationaux, notés par le public sur l'écriture, le jeu de scène, l'originalité et la présence.
+            PasDrôle.FR référence les humoristes français et internationaux, notés par le public sur l'écriture, le jeu de scène, l'originalité et la présence.
           </p>
         </div>
         <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: 240 }}>
@@ -638,6 +666,41 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
           </button>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+// Encart "dernières évolutions du classement" : les 10 humoristes dont le rang a le plus
+// récemment bougé (montée ou descente, peu importe l'ampleur), triés du plus récent au plus
+// ancien. Repose sur le même calcul de tendance (7 jours) que les badges du classement.
+function RecentRankMovesCard({ comicsWithStats, onOpen }) {
+  const moves = useMemo(() => computeRecentRankMoves(comicsWithStats, 10), [comicsWithStats]);
+  if (moves.length === 0) return null;
+  return (
+    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
+      <SectionTitle>DERNIÈRES ÉVOLUTIONS DU CLASSEMENT</SectionTitle>
+      <div style={{
+        background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
+        borderRadius: 16, padding: "6px 10px",
+      }}>
+        {moves.map(({ comic, delta, lastActivity }, i) => (
+          <button key={comic.id} onClick={() => onOpen(comic.id)} style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 12, background: "none", border: "none",
+            borderBottom: i < moves.length - 1 ? `1px solid ${C.border}` : "none",
+            padding: "13px 8px", cursor: "pointer", textAlign: "left",
+          }}>
+            <PhotoPlaceholder size={38} label={comic.nom} imgSrc={comic.photo_url} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, color: C.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{comic.nom}</div>
+              <div style={{ fontSize: 11, color: C.dim2 }}>{timeAgoFr(lastActivity)}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 700, color: delta > 0 ? C.green : C.red, flexShrink: 0 }}>
+              {delta > 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+              {(delta > 0 ? "+" : "-") + Math.abs(delta)}
+            </div>
+          </button>
+        ))}
       </div>
     </section>
   );
@@ -979,6 +1042,49 @@ function RedactionCard({ comic }) {
   );
 }
 
+// Palmarès "Sur le ring" d'un humoriste : une ligne par combat clôturé auquel il a participé,
+// victoire ou défaite, avec le score face à l'adversaire — un petit clin d'œil fun sur sa fiche.
+function CombatResultsCard({ comic, combats }) {
+  if (!combats || combats.length === 0) return null;
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+      <SectionTitle>SUR LE RING</SectionTitle>
+      {combats.map((combat, i) => {
+        const isA = combat.comic_a.id === comic.id;
+        const opponent = isA ? combat.comic_b : combat.comic_a;
+        const myVotes = isA ? combat.votes_a : combat.votes_b;
+        const oppVotes = isA ? combat.votes_b : combat.votes_a;
+        const total = (myVotes || 0) + (oppVotes || 0);
+        const pct = total ? Math.round((myVotes / total) * 100) : 0;
+        const won = combat.winner?.id === comic.id;
+        return (
+          <div key={combat.id} style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+            borderBottom: i < combats.length - 1 ? `1px solid ${C.border}` : "none",
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              background: won ? `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})` : "rgba(224,87,74,0.15)",
+            }}>
+              {won ? <Crown size={15} color="#1A1509" /> : <Skull size={15} color={C.red} />}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.4 }}>
+                {won
+                  ? <>A dominé <strong style={{ color: C.gold }}>{opponent.nom}</strong> sur le ring</>
+                  : <>S'est incliné face à <strong style={{ color: C.text }}>{opponent.nom}</strong> sur le ring</>}
+              </div>
+              <div style={{ fontSize: 10.5, color: C.dim2, marginTop: 2 }}>
+                {pct}% des votes · {new Date(combat.ended_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [comic, setComic] = useState(null);
   const [ratings, setRatings] = useState([]);
@@ -991,6 +1097,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [videos, setVideos] = useState([]);
+  const [combats, setCombats] = useState([]); // combats "Sur le ring" clôturés auxquels cet humoriste a participé
   const [category, setCategory] = useState(null); // { category_id, category_slug, category_label }
   const [criteria, setCriteria] = useState([]); // grille de critères (3) de la catégorie du comic
   const [copied, setCopied] = useState(false);
@@ -1032,17 +1139,20 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
         url: `${window.location.origin}/${c.slug}`,
       });
 
-      const [r, rv, vids] = await Promise.allSettled([
+      const [r, rv, vids, cbts] = await Promise.allSettled([
         api.fetchRatingsForComic(comicId),
         api.fetchReviewsForComic(comicId),
         api.fetchVideosForComic(comicId),
+        api.fetchCombatsForComic(comicId),
       ]);
       setRatings(r.status === "fulfilled" ? r.value : []);
       setReviews(rv.status === "fulfilled" ? rv.value : []);
       setVideos(vids.status === "fulfilled" ? vids.value : []);
+      setCombats(cbts.status === "fulfilled" ? cbts.value : []);
       if (r.status === "rejected") console.error("Erreur notes:", r.reason);
       if (rv.status === "rejected") console.error("Erreur avis:", rv.reason);
       if (vids.status === "rejected") console.error("Erreur vidéos:", vids.reason);
+      if (cbts.status === "rejected") console.error("Erreur combats:", cbts.reason);
 
       // Une fois les notes connues, on affine le titre et on publie les données structurées
       // (schema.org Person + AggregateRating) pour que Google puisse afficher la note ⭐ directement.
@@ -1257,6 +1367,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
           </div>
 
           <RedactionCard comic={comic} />
+          <CombatResultsCard comic={comic} combats={combats} />
         </div>
       </div>
     </div>
@@ -3301,6 +3412,7 @@ export default function App() {
         <>
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
+          <RecentRankMovesCard comicsWithStats={comicsWithStats} onOpen={openComic} />
           <CombatDuMoment onOpenComic={openComic} />
           <MatchCTA onLaunch={openRandomMatch} exhausted={allDuelsDone} />
           <DuelWinnersStrip comics={comics} />
