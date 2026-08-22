@@ -3014,7 +3014,7 @@ function AdminCombatTab() {
 
 function AdminPage({ onRefreshPublic, onOpenComic, onOpenStreamer }) {
   const [comics, setComics] = useState([]);
-  const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "" });
+  const [form, setForm] = useState({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "", instagram_url: "", instagram_followers: "" });
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
@@ -3083,8 +3083,31 @@ function AdminPage({ onRefreshPublic, onOpenComic, onOpenStreamer }) {
     if (form.category_id) {
       try { await api.setComicCategory(created.id, form.category_id); } catch (e) { console.error("Erreur assignation catégorie:", e); }
     }
-    setForm({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "" });
+    if (form.instagram_url.trim()) {
+      try {
+        await supabase.from("social_links").upsert({
+          comedian_id: created.id,
+          platform: "instagram",
+          url: form.instagram_url.trim(),
+          follower_count: form.instagram_followers ? parseInt(form.instagram_followers, 10) : null,
+          verification_status: "verified",
+          confidence: "certain",
+          source: "admin_manual",
+          followers_updated_at: new Date().toISOString(),
+        }, { onConflict: "comedian_id,platform" });
+      } catch (e) { console.error("Erreur ajout lien Instagram:", e); }
+    }
+    setForm({ nom: "", pays: "France", debut: "", genres: "", bio: "", spectaclesRaw: "", date_naissance: "", category_id: "", instagram_url: "", instagram_followers: "" });
     await load(); onRefreshPublic();
+  };
+
+  // Ouvre une recherche Google filtrée sur instagram.com pour le nom en cours de saisie —
+  // Instagram n'a pas d'API publique de recherche par nom, donc on assiste la recherche
+  // manuelle plutôt que de scraper leur site (fragile et hors de leurs conditions d'utilisation).
+  const searchInstagram = () => {
+    if (!form.nom.trim()) return;
+    const url = `https://www.google.com/search?q=${encodeURIComponent(`site:instagram.com ${form.nom.trim()} humoriste`)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   // Parseur CSV "propre" : respecte les guillemets, donc une virgule DANS
@@ -3242,6 +3265,22 @@ function AdminPage({ onRefreshPublic, onOpenComic, onOpenStreamer }) {
               <input key={k} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} placeholder={k}
                 style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, marginBottom: 10 }} />
             ))}
+            <div style={{ marginBottom: 10, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: C.dim2 }}>Instagram</div>
+                <button type="button" onClick={searchInstagram} disabled={!form.nom.trim()} title="Instagram n'a pas d'API de recherche publique — ceci ouvre une recherche Google filtrée sur instagram.com pour retrouver le profil rapidement" style={{
+                  display: "flex", alignItems: "center", gap: 5, fontSize: 11, padding: "5px 10px", borderRadius: 20,
+                  border: `1px solid ${C.border}`, background: "transparent", color: form.nom.trim() ? C.gold : C.dim2,
+                  cursor: form.nom.trim() ? "pointer" : "default",
+                }}>
+                  <Search size={12} /> Chercher
+                </button>
+              </div>
+              <input value={form.instagram_url} onChange={(e) => setForm({ ...form, instagram_url: e.target.value })} placeholder="Lien du profil (https://instagram.com/...)"
+                style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, marginBottom: 8 }} />
+              <input value={form.instagram_followers} onChange={(e) => setForm({ ...form, instagram_followers: e.target.value.replace(/[^0-9]/g, "") })} placeholder="Nombre d'abonnés" inputMode="numeric"
+                style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13 }} />
+            </div>
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Date de naissance (pour l'âge auto)</div>
               <input type="date" value={form.date_naissance} onChange={(e) => setForm({ ...form, date_naissance: e.target.value })}
