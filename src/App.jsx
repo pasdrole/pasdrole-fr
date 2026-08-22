@@ -578,28 +578,14 @@ function computeRecentRankMoves(comicsWithStats, limit = 10) {
     .sort((a, b) => b.lastActivity - a.lastActivity)
     .slice(0, limit);
 }
-// Formatte un timestamp en "il y a X" relatif, en français.
-function timeAgoFr(timestamp) {
-  const diffMs = Date.now() - timestamp;
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "à l'instant";
-  if (minutes < 60) return `il y a ${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `il y a ${hours} h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `il y a ${days} jour${days > 1 ? "s" : ""}`;
-  const months = Math.floor(days / 30);
-  return `il y a ${months} mois`;
-}
-
 /* ---------- Hero / listing ---------- */
-function Hero({ comicsWithStats }) {
+function Hero({ comicsWithStats, onOpen }) {
   const allVotes = comicsWithStats.reduce((s, c) => s + c.votes, 0);
   const avgs = comicsWithStats.map((c) => c.avg10).filter((v) => v > 0);
   const globalAvg = avgs.length ? avgs.reduce((a, b) => a + b, 0) / avgs.length : 0;
   return (
     <div style={{ borderBottom: `1px solid ${C.border}`, background: `linear-gradient(180deg, #0E0C11, ${C.bg})` }}>
-      <div style={{ maxWidth: 1220, margin: "0 auto", padding: "56px 24px 44px", display: "flex", gap: 40, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ maxWidth: 1220, margin: "0 auto", padding: "56px 24px 44px", display: "flex", gap: 40, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 420px" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, color: C.gold, letterSpacing: 1.5, fontWeight: 600, marginBottom: 18, textTransform: "uppercase" }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold }} /> Notation par critères · communauté publique
@@ -611,13 +597,16 @@ function Hero({ comicsWithStats }) {
             PasDrôle.FR référence les humoristes français et internationaux, notés par le public sur l'écriture, le jeu de scène, l'originalité et la présence.
           </p>
         </div>
-        <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: 240 }}>
-          <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase" }}>La note moyenne générale</div>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold, margin: "6px 0 2px" }}>
-            {globalAvg > 0 ? globalAvg.toFixed(1).replace(".", ",") : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: 240 }}>
+            <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase" }}>La note moyenne générale</div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold, margin: "6px 0 2px" }}>
+              {globalAvg > 0 ? globalAvg.toFixed(1).replace(".", ",") : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
+            </div>
+            <Micros value={globalAvg} />
+            <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
           </div>
-          <Micros value={globalAvg} />
-          <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
+          <RecentRankMovesCard comicsWithStats={comicsWithStats} onOpen={onOpen} />
         </div>
       </div>
     </div>
@@ -671,38 +660,35 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
   );
 }
 
-// Encart "dernières évolutions du classement" : les 10 humoristes dont le rang a le plus
+// Petit encart "dernières évolutions du classement" — même gabarit compact que la note moyenne
+// générale, pas une section pleine largeur. Liste les 10 humoristes dont le rang a le plus
 // récemment bougé (montée ou descente, peu importe l'ampleur), triés du plus récent au plus
-// ancien. Repose sur le même calcul de tendance (7 jours) que les badges du classement.
+// ancien, dans une liste resserrée avec défilement interne. Repose sur le même calcul de
+// tendance (7 jours) que les badges du classement.
 function RecentRankMovesCard({ comicsWithStats, onOpen }) {
   const moves = useMemo(() => computeRecentRankMoves(comicsWithStats, 10), [comicsWithStats]);
   if (moves.length === 0) return null;
   return (
-    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
-      <SectionTitle>DERNIÈRES ÉVOLUTIONS DU CLASSEMENT</SectionTitle>
-      <div style={{
-        background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: "6px 10px",
-      }}>
-        {moves.map(({ comic, delta, lastActivity }, i) => (
+    <div style={{
+      background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
+      borderRadius: 16, padding: "18px 20px", minWidth: 240,
+    }}>
+      <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>Dernières évolutions</div>
+      <div style={{ display: "flex", flexDirection: "column", maxHeight: 220, overflowY: "auto" }}>
+        {moves.map(({ comic, delta }) => (
           <button key={comic.id} onClick={() => onOpen(comic.id)} style={{
-            width: "100%", display: "flex", alignItems: "center", gap: 12, background: "none", border: "none",
-            borderBottom: i < moves.length - 1 ? `1px solid ${C.border}` : "none",
-            padding: "13px 8px", cursor: "pointer", textAlign: "left",
+            width: "100%", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
+            padding: "6px 0", cursor: "pointer", textAlign: "left",
           }}>
-            <PhotoPlaceholder size={38} label={comic.nom} imgSrc={comic.photo_url} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, color: C.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{comic.nom}</div>
-              <div style={{ fontSize: 11, color: C.dim2 }}>{timeAgoFr(lastActivity)}</div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 700, color: delta > 0 ? C.green : C.red, flexShrink: 0 }}>
-              {delta > 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+            <span style={{ fontSize: 12.5, color: C.text, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{comic.nom}</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 11.5, fontWeight: 700, color: delta > 0 ? C.green : C.red, flexShrink: 0 }}>
+              {delta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
               {(delta > 0 ? "+" : "-") + Math.abs(delta)}
-            </div>
+            </span>
           </button>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -3410,9 +3396,8 @@ export default function App() {
 
       {nav.page === "home" && (
         <>
-          <Hero comicsWithStats={comicsWithStats} />
+          <Hero comicsWithStats={comicsWithStats} onOpen={openComic} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
-          <RecentRankMovesCard comicsWithStats={comicsWithStats} onOpen={openComic} />
           <CombatDuMoment onOpenComic={openComic} />
           <MatchCTA onLaunch={openRandomMatch} exhausted={allDuelsDone} />
           <DuelWinnersStrip comics={comics} />
