@@ -1273,6 +1273,23 @@ function matchSlugFor(a, b) {
   const [first, second] = orderMatchPair(a, b);
   return `${first.slug}-vs-${second.slug}`;
 }
+// Liste toutes les combinaisons de duels (x-vs-y, jamais y-vs-x en double) parmi les humoristes
+// publiés, en excluant celles déjà votées par ce visiteur (stockées en localStorage).
+function computeUnvotedMatchPairs(comics) {
+  const votedSlugs = new Set(
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("match_voted:"))
+      .map((k) => k.slice("match_voted:".length))
+  );
+  const pairs = [];
+  for (let i = 0; i < comics.length; i++) {
+    for (let j = i + 1; j < comics.length; j++) {
+      const slug = matchSlugFor(comics[i], comics[j]);
+      if (!votedSlugs.has(slug)) pairs.push({ a: comics[i], b: comics[j], slug });
+    }
+  }
+  return pairs;
+}
 function CrossedSwords({ size = 22, color = C.gold }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -1281,24 +1298,41 @@ function CrossedSwords({ size = 22, color = C.gold }) {
     </svg>
   );
 }
-function MatchCTA({ onLaunch }) {
+function MatchCTA({ onLaunch, exhausted }) {
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
       <SectionTitle>DUEL AU HASARD</SectionTitle>
-      <button onClick={onLaunch} style={{
-        width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-        background: `linear-gradient(120deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: "22px 20px", cursor: "pointer", textAlign: "center",
-      }}>
-        <CrossedSwords size={26} />
-        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 1, color: C.text }}>
-          <span style={{ color: C.gold }}>DUEL ALÉATOIRE</span>
-        </span>
-        <CrossedSwords size={26} />
-      </button>
-      <div style={{ textAlign: "center", fontSize: 11.5, color: C.dim2, marginTop: 8 }}>
-        Votez, et le gagnant lance automatiquement un nouveau combat aléatoire !
-      </div>
+      {exhausted ? (
+        <div style={{
+          width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+          background: `linear-gradient(120deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
+          borderRadius: 16, padding: "22px 20px", textAlign: "center",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <CrossedSwords size={22} color={C.dim2} />
+            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 1, color: C.dim }}>TU AS VOTÉ SUR TOUS LES DUELS POSSIBLES !</span>
+            <CrossedSwords size={22} color={C.dim2} />
+          </div>
+          <div style={{ fontSize: 11.5, color: C.dim2 }}>Reviens quand on aura ajouté de nouveaux humoristes.</div>
+        </div>
+      ) : (
+        <>
+          <button onClick={onLaunch} style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+            background: `linear-gradient(120deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
+            borderRadius: 16, padding: "22px 20px", cursor: "pointer", textAlign: "center",
+          }}>
+            <CrossedSwords size={26} />
+            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 1, color: C.text }}>
+              <span style={{ color: C.gold }}>DUEL ALÉATOIRE</span>
+            </span>
+            <CrossedSwords size={26} />
+          </button>
+          <div style={{ textAlign: "center", fontSize: 11.5, color: C.dim2, marginTop: 8 }}>
+            Votez, et le gagnant lance automatiquement un nouveau combat aléatoire !
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -1605,7 +1639,7 @@ function MatchFighterCard({ comic, picked, isWinner, pct, disabled, onPick }) {
     </button>
   );
 }
-function MatchPage({ comicA, comicB, matchSlug, onNewMatch }) {
+function MatchPage({ comicA, comicB, matchSlug, onNewMatch, onVoted, noMoreDuels }) {
   const [votes, setVotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myPick, setMyPick] = useState(null); // id de l'humoriste choisi par ce visiteur
@@ -1649,6 +1683,7 @@ function MatchPage({ comicA, comicB, matchSlug, onNewMatch }) {
       const [ordA, ordB] = orderMatchPair(comicA, comicB);
       await api.submitMatchVote(ordA.id, ordB.id, winner.id);
       await load();
+      onVoted?.();
     } catch (e) {
       console.error("Erreur vote duel:", e);
     }
@@ -1687,8 +1722,12 @@ function MatchPage({ comicA, comicB, matchSlug, onNewMatch }) {
         <div style={{ marginTop: 22, color: C.dim2, fontSize: 12.5 }}>Clique sur ton préféré</div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 26, flexWrap: "wrap" }}>
-        <GoldButton onClick={onNewMatch} pulse={!!myPick}>Nouveau duel</GoldButton>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 26, flexWrap: "wrap" }}>
+        {noMoreDuels ? (
+          <div style={{ color: C.dim2, fontSize: 12.5, maxWidth: 340 }}>Tu as voté sur tous les duels possibles ! Reviens quand on aura ajouté de nouveaux humoristes.</div>
+        ) : (
+          <GoldButton onClick={onNewMatch} pulse={!!myPick}>Nouveau duel</GoldButton>
+        )}
         <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.border}`, borderRadius: 9, padding: "11px 20px", cursor: "pointer", color: C.text, fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
           {copied ? "LIEN COPIÉ !" : "PARTAGER"}
         </button>
@@ -3059,6 +3098,9 @@ export default function App() {
   const [comics, setComics] = useState([]);
   const [ratingsByComic, setRatingsByComic] = useState({});
   const [loading, setLoading] = useState(true);
+  // Incrémenté à chaque vote de duel (et à l'arrivée sur l'accueil) pour forcer le recalcul
+  // des combinaisons de duels restantes (stockées en localStorage, donc invisibles à React).
+  const [matchVoteTick, setMatchVoteTick] = useState(0);
 
   const loadPublicComics = useCallback(async () => {
     const list = await api.fetchPublishedComics();
@@ -3182,22 +3224,26 @@ export default function App() {
     });
   }, [pathForNav]);
 
-  // Tire un duel aléatoire parmi les humoristes publiés et ouvre directement la page du duel
-  // (1 clic depuis l'accueil, pas d'étape intermédiaire). Évite de retomber sur le duel précédent.
+  // Tire un duel aléatoire parmi les combinaisons pas encore votées par ce visiteur (x-vs-y et
+  // y-vs-x comptent pour le même duel), et ouvre directement la page du duel. Une fois toutes les
+  // combinaisons votées, on ne propose plus rien (cf. allDuelsDone) — évite aussi de retomber
+  // directement sur le duel précédent quand une autre combinaison est disponible.
   const lastMatchRef = useRef(null);
+  const unvotedMatchPairs = useMemo(() => computeUnvotedMatchPairs(comics), [comics, matchVoteTick]);
+  const allDuelsDone = comics.length >= 2 && unvotedMatchPairs.length === 0;
+  useEffect(() => {
+    if (nav.page === "home") setMatchVoteTick((t) => t + 1);
+  }, [nav.page]);
   const openRandomMatch = useCallback(() => {
     if (comics.length < 2) return;
-    let a, b, slug;
-    let attempts = 0;
-    do {
-      a = comics[Math.floor(Math.random() * comics.length)];
-      do { b = comics[Math.floor(Math.random() * comics.length)]; } while (b.id === a.id);
-      slug = matchSlugFor(a, b);
-      attempts++;
-    } while (slug === lastMatchRef.current && attempts < 8);
-    lastMatchRef.current = slug;
-    window.history.pushState({}, "", `/match/${slug}`);
-    setNav({ page: "match", comicAId: a.id, comicBId: b.id, matchSlug: slug });
+    const pairs = computeUnvotedMatchPairs(comics);
+    if (pairs.length === 0) return; // plus aucune combinaison disponible — l'UI affiche déjà le message dédié
+    const candidates = pairs.length > 1 ? pairs.filter((p) => p.slug !== lastMatchRef.current) : pairs;
+    const pool = candidates.length ? candidates : pairs;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    lastMatchRef.current = pick.slug;
+    window.history.pushState({}, "", `/match/${pick.slug}`);
+    setNav({ page: "match", comicAId: pick.a.id, comicBId: pick.b.id, matchSlug: pick.slug });
   }, [comics]);
   const openGenre = useCallback((genre) => {
     const slug = slugifyGenre(genre);
@@ -3256,7 +3302,7 @@ export default function App() {
           <Hero comicsWithStats={comicsWithStats} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
           <CombatDuMoment onOpenComic={openComic} />
-          <MatchCTA onLaunch={openRandomMatch} />
+          <MatchCTA onLaunch={openRandomMatch} exhausted={allDuelsDone} />
           <DuelWinnersStrip comics={comics} />
           <LatestReviews onOpen={openComic} />
         </>
@@ -3268,7 +3314,7 @@ export default function App() {
         const comicA = comics.find((c) => c.id === nav.comicAId);
         const comicB = comics.find((c) => c.id === nav.comicBId);
         if (!comicA || !comicB) return <div style={{ padding: 60, textAlign: "center", color: C.dim }}>Chargement du duel...</div>;
-        return <MatchPage comicA={comicA} comicB={comicB} matchSlug={nav.matchSlug} onNewMatch={openRandomMatch} />;
+        return <MatchPage comicA={comicA} comicB={comicB} matchSlug={nav.matchSlug} onNewMatch={openRandomMatch} onVoted={() => setMatchVoteTick((t) => t + 1)} noMoreDuels={allDuelsDone} />;
       })()}
       {nav.page === "detail" && (
         <ComicDetail comicId={nav.id} user={user} onBack={goBack} onRequireAuth={() => setShowAuth(true)} onOpenGenre={openGenre} />
