@@ -50,24 +50,34 @@ const GENRE_OPTIONS = [
   "Physique", "Franc-parler", "Punchlines", "Acteur", "Créateur de contenu",
 ];
 
-// Expressions disponibles pour Mike (comic.expression_redaction) — reprises de la planche
-// de style du mascot. Pas d'illustration dédiée par expression pour l'instant, donc on
-// s'appuie sur un emoji comme représentation légère le temps d'avoir de vrais visuels.
+// Expressions disponibles pour Mike (comic.expression_redaction) — illustrations dédiées
+// dans public/ (une tête détourée par expression, cf. planche de style du mascot).
 const MIKE_EXPRESSIONS = [
-  { slug: "heureux", label: "Heureux", emoji: "😄" },
-  { slug: "surpris", label: "Drôlement surpris", emoji: "😲" },
-  { slug: "sceptique", label: "Sceptique", emoji: "🤨" },
-  { slug: "blase", label: "Blasé", emoji: "😑" },
-  { slug: "mdr", label: "Mort de rire", emoji: "🤣" },
-  { slug: "decu", label: "Déçu", emoji: "😞" },
-  { slug: "colere", label: "En colère", emoji: "😠" },
-  { slug: "reflexion", label: "Réflexion", emoji: "🤔" },
-  { slug: "choque", label: "Choqué", emoji: "😱" },
-  { slug: "fier", label: "Fier", emoji: "😌" },
-  { slug: "dormeur", label: "Dormeur", emoji: "😴" },
-  { slug: "sarcastique", label: "Sarcastique", emoji: "😏" },
+  { slug: "heureux", label: "Heureux", emoji: "😄", file: "01_heureux.svg" },
+  { slug: "surpris", label: "Drôlement surpris", emoji: "😲", file: "02_drolement_surpris.svg" },
+  { slug: "sceptique", label: "Sceptique", emoji: "🤨", file: "03_sceptique.svg" },
+  { slug: "blase", label: "Blasé", emoji: "😑", file: "04_blase.svg" },
+  { slug: "mdr", label: "Mort de rire", emoji: "🤣", file: "05_mort_de_rire.svg" },
+  { slug: "decu", label: "Déçu", emoji: "😞", file: "06_decu.svg" },
+  { slug: "colere", label: "En colère", emoji: "😠", file: "07_en_colere.svg" },
+  { slug: "reflexion", label: "Réflexion", emoji: "🤔", file: "08_reflexion.svg" },
+  { slug: "choque", label: "Choqué", emoji: "😱", file: "09_choque.svg" },
+  { slug: "fier", label: "Fier", emoji: "😌", file: "10_fier.svg" },
+  { slug: "dormeur", label: "Dormeur", emoji: "😴", file: "11_dormeur.svg" },
+  { slug: "sarcastique", label: "Sarcastique", emoji: "😏", file: "12_sarcastique.svg" },
 ];
 const MIKE_EXPRESSION_BY_SLUG = Object.fromEntries(MIKE_EXPRESSIONS.map((e) => [e.slug, e]));
+
+// Poses "pleine figure" disponibles dans public/ (non utilisées ailleurs pour l'instant —
+// réserve pour de futurs états de l'UI : chargement, page vide, confirmation...).
+const MIKE_POSES = [
+  { slug: "presente_la_note", label: "Présente la note", file: "01_presente_la_note.svg" },
+  { slug: "reflechit", label: "Réfléchit", file: "02_reflechit.svg" },
+  { slug: "applaudit", label: "Applaudit", file: "03_applaudit.svg" },
+  { slug: "pouce_en_lair", label: "Pouce en l'air", file: "04_pouce_en_lair.svg" },
+  { slug: "bof", label: "Bof...", file: "05_bof.svg" },
+  { slug: "facepalm", label: "Facepalm", file: "06_facepalm.svg" },
+];
 
 // Correspondances pour retrouver le pays à partir d'un code court (FR, BE...) éventuellement stocké en base.
 const COUNTRY_ALIASES = {
@@ -942,18 +952,14 @@ function RedactionCard({ comic }) {
         const expression = MIKE_EXPRESSION_BY_SLUG[comic.expression_redaction];
         // Reprend le look du panneau du logo (fond noir, liseré doré) que Mike "brandit" —
         // son expression (choisie par l'admin) déborde légèrement sur le panneau, comme sa
-        // tête sur le logo principal. Pas d'illustration par expression pour l'instant : on
-        // s'appuie sur l'emoji correspondant tant qu'il n'y a pas de vrais visuels.
+        // tête sur le logo principal.
         return (
           <div style={{ display: "flex", alignItems: "center", marginBottom: comic.avis_redaction ? 16 : 2 }}>
             {expression && (
-              <div title={expression.label} style={{
-                width: 54, height: 54, borderRadius: 14, flexShrink: 0, position: "relative", zIndex: 1,
-                marginRight: -14, boxShadow: "0 4px 12px -2px rgba(0,0,0,0.6)", border: `2px solid ${C.bg}`,
-                background: C.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28,
-              }}>
-                {expression.emoji}
-              </div>
+              <img src={`/${expression.file}`} alt={expression.label} title={expression.label} style={{
+                width: 54, height: 54, objectFit: "contain", flexShrink: 0, position: "relative", zIndex: 1,
+                marginRight: -14, filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.6))",
+              }} />
             )}
             <div style={{
               background: "#141018", border: `2px solid ${C.gold}`, borderRadius: 10,
@@ -2557,6 +2563,9 @@ function EditComicModal({ comic, onClose, onSaved }) {
               <option value="">— Expression —</option>
               {MIKE_EXPRESSIONS.map((exp) => <option key={exp.slug} value={exp.slug}>{exp.emoji} {exp.label}</option>)}
             </select>
+            {form.expression_redaction && MIKE_EXPRESSION_BY_SLUG[form.expression_redaction] && (
+              <img src={`/${MIKE_EXPRESSION_BY_SLUG[form.expression_redaction].file}`} alt="" style={{ width: 40, height: 40, objectFit: "contain", flexShrink: 0 }} />
+            )}
           </div>
           <textarea value={form.avis_redaction} onChange={(e) => setForm({ ...form, avis_redaction: e.target.value })} rows={4}
             placeholder="Le petit mot de Mike sur cet humoriste..."
