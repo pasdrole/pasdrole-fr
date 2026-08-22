@@ -945,7 +945,6 @@ function RedactionCard({ comic }) {
       border: `1px solid rgba(240,180,41,0.35)`, borderRadius: 14, padding: 22,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <img src="/logo-mike_tete.png" alt="Mike, mascotte PasDrôle" style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0 }} />
         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 1, color: C.gold }}>L'AVIS DE MIKE</span>
       </div>
       {comic.note_redaction != null && (() => {
