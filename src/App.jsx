@@ -704,25 +704,38 @@ function LatestReviews({ onOpen }) {
 
   if (loading || reviews.length === 0) return null;
 
+  // Carte dupliquée une fois pour permettre un défilement en boucle continue et sans à-coup
+  // (translateX de 0 à -50% sur un piste composée de [original, copie identique]).
+  const renderCard = (r, keySuffix) => (
+    <button key={`${r.id}${keySuffix}`} onClick={() => onOpen(r.comics?.id)} style={{
+      flex: "0 0 260px", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14,
+      padding: 16, cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 10,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <PhotoPlaceholder size={34} label={r.comics?.nom} imgSrc={r.comics?.photo_url} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.comics?.nom}</div>
+          <div style={{ fontSize: 11, color: C.gold }}>{r.profiles?.pseudo || "Anonyme"}</div>
+        </div>
+      </div>
+      <p style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, margin: 0, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.content}</p>
+    </button>
+  );
+
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
       <SectionTitle>DERNIERS AVIS</SectionTitle>
-      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 12 }}>
-        {reviews.map((r) => (
-          <button key={r.id} onClick={() => onOpen(r.comics?.id)} style={{
-            flex: "0 0 260px", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14,
-            padding: 16, cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 10,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <PhotoPlaceholder size={34} label={r.comics?.nom} imgSrc={r.comics?.photo_url} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.comics?.nom}</div>
-                <div style={{ fontSize: 11, color: C.gold }}>{r.profiles?.pseudo || "Anonyme"}</div>
-              </div>
-            </div>
-            <p style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, margin: 0, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.content}</p>
-          </button>
-        ))}
+      <style>{`
+        @keyframes pdReviewsScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .pd-reviews-track { display: flex; gap: 14px; width: max-content; padding-bottom: 4px; animation: pdReviewsScroll ${reviews.length * 6}s linear infinite; }
+        .pd-reviews-track:hover { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) { .pd-reviews-track { animation: none; } }
+      `}</style>
+      <div style={{ overflow: "hidden" }}>
+        <div className="pd-reviews-track">
+          {reviews.map((r) => renderCard(r, ""))}
+          {reviews.map((r) => renderCard(r, "-dup"))}
+        </div>
       </div>
     </section>
   );
