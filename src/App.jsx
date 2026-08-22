@@ -1704,13 +1704,16 @@ function DuelWinnersStrip({ comics }) {
 // "Combat du moment" : un duel choisi manuellement en admin, dont les votes sont comptabilisés
 // jusqu'à clôture manuelle. Le résultat du dernier combat clôturé reste affiché en permanence
 // sous la zone de vote (qu'un nouveau combat soit lancé ou non), et ouvre l'historique complet au clic.
-function CombatDuMoment({ onOpenComic }) {
+function CombatDuMoment({ onOpenComic, sharedCombatId }) {
   const [combat, setCombat] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
   const [hasVoted, setHasVoted] = useState(false);
   const [voting, setVoting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [sharedCombat, setSharedCombat] = useState(null);
+  const [sharedNotFound, setSharedNotFound] = useState(false);
 
   const load = useCallback(async () => {
     const active = await api.fetchActiveCombat().catch((e) => { console.error("Erreur combat actif:", e); return null; });
@@ -1720,6 +1723,29 @@ function CombatDuMoment({ onOpenComic }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Combat ouvert via un lien /combat/{id} partagé. S'il s'agit déjà du combat du moment,
+  // rien à faire de plus (il s'affiche normalement, votable). Sinon (combat terminé depuis,
+  // ou différent), on va le chercher spécifiquement pour l'afficher en lecture seule.
+  useEffect(() => {
+    if (!sharedCombatId) { setSharedCombat(null); setSharedNotFound(false); return; }
+    if (combat && sharedCombatId === combat.id) { setSharedCombat(null); setSharedNotFound(false); return; }
+    api.fetchCombatById(sharedCombatId)
+      .then((c) => { if (c) { setSharedCombat(c); setSharedNotFound(false); } else { setSharedCombat(null); setSharedNotFound(true); } })
+      .catch((e) => { console.error("Erreur combat partagé:", e); setSharedCombat(null); setSharedNotFound(true); });
+  }, [sharedCombatId, combat]);
+
+  const shareCombat = async (c) => {
+    if (!c) return;
+    const url = `${window.location.origin}/combat/${c.id}`;
+    const title = `${c.comic_a.nom} vs ${c.comic_b.nom} — Sur le ring — PasDrôle.fr`;
+    if (navigator.share) {
+      try { await navigator.share({ title, url }); return; } catch (e) { /* annulé */ }
+    }
+    navigator.clipboard?.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const vote = async (winnerId) => {
     if (!combat || hasVoted || voting) return;
@@ -1750,15 +1776,44 @@ function CombatDuMoment({ onOpenComic }) {
     catch (e) { console.error("Erreur historique combats:", e); }
   };
 
-  if (!combat && !lastResult) return null; // rien à afficher tant qu'aucun combat n'a jamais été lancé
+  if (!combat && !lastResult && !sharedCombatId) return null; // rien à afficher tant qu'aucun combat n'a jamais été lancé
 
   const totalVotes = combat ? combat.votesA + combat.votesB : 0;
   const pctA = totalVotes > 0 ? Math.round((combat.votesA / totalVotes) * 100) : 50;
   const pctB = 100 - pctA;
 
+  const sharedTotal = sharedCombat ? sharedCombat.votesA + sharedCombat.votesB : 0;
+  const sharedPctA = sharedTotal > 0 ? Math.round((sharedCombat.votesA / sharedTotal) * 100) : 50;
+  const sharedPctB = 100 - sharedPctA;
+
   return (
     <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
       <SectionTitle>SUR LE RING</SectionTitle>
+
+      {sharedCombat && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>
+            Combat partagé {sharedCombat.is_active ? "" : "— terminé"}
+          </div>
+          <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+            <MatchFighterCard comic={sharedCombat.comic_a} picked isWinner={sharedCombat.votesA >= sharedCombat.votesB} pct={sharedPctA} disabled onPick={() => {}} />
+            <CrossedSwords size={22} />
+            <MatchFighterCard comic={sharedCombat.comic_b} picked isWinner={sharedCombat.votesB > sharedCombat.votesA} pct={sharedPctB} disabled onPick={() => {}} />
+          </div>
+          <div style={{ textAlign: "center", marginTop: 12, fontSize: 12, color: C.dim2 }}>
+            {sharedTotal} vote{sharedTotal !== 1 ? "s" : ""} au total
+          </div>
+        </div>
+      )}
+      {sharedNotFound && (
+        <div style={{ color: C.dim2, fontSize: 12.5, textAlign: "center", marginBottom: 20 }}>Ce combat n'existe plus.</div>
+      )}
+
+      {combat && sharedCombat && (
+        <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>
+          Combat du moment
+        </div>
+      )}
 
       {combat ? (
         <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
@@ -1767,7 +1822,19 @@ function CombatDuMoment({ onOpenComic }) {
           <MatchFighterCard comic={combat.comic_b} picked={hasVoted} isWinner={combat.votesB > combat.votesA} pct={pctB} disabled={hasVoted || voting} onPick={() => vote(combat.comic_b_id)} />
         </div>
       ) : (
-        <div style={{ color: C.dim2, fontSize: 13, textAlign: "center", padding: "20px 0" }}>Aucun combat en cours pour le moment.</div>
+        !sharedCombat && <div style={{ color: C.dim2, fontSize: 13, textAlign: "center", padding: "20px 0" }}>Aucun combat en cours pour le moment.</div>
+      )}
+
+      {combat && (
+        <div style={{ textAlign: "center", marginTop: 18 }}>
+          <button onClick={() => shareCombat(combat)} style={{
+            display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.border}`,
+            borderRadius: 9, padding: "9px 18px", cursor: "pointer", color: C.text, fontSize: 12.5,
+            fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
+          }}>
+            <Share size={14} /> {copied ? "LIEN COPIÉ !" : "PARTAGER CE COMBAT"}
+          </button>
+        </div>
       )}
 
       {lastResult && (
@@ -3357,6 +3424,9 @@ export default function App() {
     const path = window.location.pathname.replace(/^\/|\/$/g, "");
     if (!path || path.startsWith("genre/") || path.startsWith("match/")) return; // gérés par l'effet dédié ci-dessous, une fois les humoristes chargés
     if (path.startsWith("streamers/")) { setNav({ page: "streamerDetail", twitchLogin: path.slice("streamers/".length) }); return; }
+    // Lien /combat/{id} partagé depuis "Sur le ring" — pas besoin d'attendre la liste des
+    // humoristes, le combat est retrouvé directement par son id.
+    if (path.startsWith("combat/")) { setNav({ page: "home", sharedCombatId: path.slice("combat/".length) }); return; }
     const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
     if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
     api.fetchComicBySlug(path).then((c) => {
@@ -3408,6 +3478,7 @@ export default function App() {
         return;
       }
       if (path.startsWith("streamers/")) { setNav({ page: "streamerDetail", twitchLogin: path.slice("streamers/".length) }); return; }
+      if (path.startsWith("combat/")) { setNav({ page: "home", sharedCombatId: path.slice("combat/".length) }); return; }
       const staticEntry = Object.entries(PAGE_PATHS).find(([, p]) => p === `/${path}`);
       if (staticEntry) { setNav({ page: staticEntry[0] }); return; }
       const c = comics.find((x) => x.slug === path);
@@ -3527,7 +3598,7 @@ export default function App() {
         <>
           <Hero comicsWithStats={comicsWithStats} onOpen={openComic} />
           <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
-          <CombatDuMoment onOpenComic={openComic} />
+          <CombatDuMoment onOpenComic={openComic} sharedCombatId={nav.sharedCombatId} />
           <MatchCTA onLaunch={openRandomMatch} exhausted={allDuelsDone} />
           <DuelWinnersStrip comics={comics} />
           <LatestReviews onOpen={openComic} />
