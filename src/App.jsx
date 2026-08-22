@@ -905,6 +905,35 @@ function SocialLinksRow({ comicId }) {
   );
 }
 
+// Encart "avis de la rédaction" : note + petit mot rédigés à la main par l'équipe PasDrôle,
+// distincts des votes/avis publics (comic.note_redaction / comic.avis_redaction, remplis
+// depuis l'admin). Ne s'affiche que si l'un des deux champs a été renseigné.
+function RedactionCard({ comic }) {
+  if (comic.note_redaction == null && !comic.avis_redaction) return null;
+  return (
+    <div style={{
+      background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`,
+      border: `1px solid rgba(240,180,41,0.35)`, borderRadius: 14, padding: 22,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <img src="/logo-mike.png" alt="Mike, mascotte PasDrôle" style={{ width: 34, height: 34, objectFit: "contain", flexShrink: 0 }} />
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 1, color: C.gold }}>L'AVIS DE LA RÉDACTION</span>
+      </div>
+      {comic.note_redaction != null && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: comic.avis_redaction ? 14 : 0 }}>
+          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: C.gold }}>
+            {Number(comic.note_redaction).toFixed(1).replace(".", ",")}<span style={{ fontSize: 14, color: C.dim2, fontFamily: "Inter" }}>/10</span>
+          </span>
+          <Micros value={Number(comic.note_redaction)} size={16} />
+        </div>
+      )}
+      {comic.avis_redaction && (
+        <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.6, margin: 0 }}>{comic.avis_redaction}</p>
+      )}
+    </div>
+  );
+}
+
 function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const [comic, setComic] = useState(null);
   const [ratings, setRatings] = useState([]);
@@ -1181,6 +1210,8 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
             {myReview?.status === "pending" && <div style={{ fontSize: 11.5, color: C.gold, marginTop: 10, textAlign: "center" }}>En attente de validation par l'équipe</div>}
             {myReview?.status === "rejected" && <div style={{ fontSize: 11.5, color: C.red, marginTop: 10, textAlign: "center" }}>Cet avis n'a pas été validé</div>}
           </div>
+
+          <RedactionCard comic={comic} />
         </div>
       </div>
     </div>
@@ -2317,6 +2348,8 @@ function EditComicModal({ comic, onClose, onSaved }) {
     spectaclesRaw: (comic.spectacles || []).join(", "),
     date_naissance: comic.date_naissance || "",
     category_id: "",
+    note_redaction: comic.note_redaction != null ? String(comic.note_redaction) : "",
+    avis_redaction: comic.avis_redaction || "",
   });
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -2393,10 +2426,16 @@ function EditComicModal({ comic, onClose, onSaved }) {
     setSaving(true);
     setErr("");
     try {
+      const noteRedactionValue = form.note_redaction.trim() === "" ? null : Number(form.note_redaction.replace(",", "."));
+      if (noteRedactionValue !== null && (isNaN(noteRedactionValue) || noteRedactionValue < 0 || noteRedactionValue > 10)) {
+        throw new Error("La note de la rédaction doit être comprise entre 0 et 10.");
+      }
       await api.updateComic(comic.id, {
         nom: form.nom.trim(), pays: form.pays, debut: form.debut, genres: form.genres, bio: form.bio,
         date_naissance: form.date_naissance || null,
         spectacles: form.spectaclesRaw.split(",").map((s) => s.trim()).filter(Boolean),
+        note_redaction: noteRedactionValue,
+        avis_redaction: form.avis_redaction.trim() || null,
       });
       await api.setComicCategory(comic.id, form.category_id || null);
       await onSaved();
@@ -2462,6 +2501,16 @@ function EditComicModal({ comic, onClose, onSaved }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: C.dim2, marginBottom: 5 }}>Bio</div>
           <textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={4}
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical" }} />
+        </div>
+
+        <div style={{ marginBottom: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.dim2, marginBottom: 10 }}>Avis de la rédaction (optionnel — affiché avec Mike sur la fiche publique)</div>
+          <input type="number" min="0" max="10" step="0.1" value={form.note_redaction}
+            onChange={(e) => setForm({ ...form, note_redaction: e.target.value })} placeholder="Note /10, ex: 7.5"
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, marginBottom: 10 }} />
+          <textarea value={form.avis_redaction} onChange={(e) => setForm({ ...form, avis_redaction: e.target.value })} rows={4}
+            placeholder="Le petit mot de la rédaction sur cet humoriste..."
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, resize: "vertical" }} />
         </div>
 
