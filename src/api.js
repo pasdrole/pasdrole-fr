@@ -224,20 +224,62 @@ export async function fetchReviewsForComic(comicId) {
   if (!reviews || !reviews.length) return [];
 
   const userIds = [...new Set(reviews.map((r) => r.user_id))];
-  const { data: profiles, error: e2 } = await supabase
-    .from("profiles")
-    .select("id, pseudo")
-    .in("id", userIds);
+  const [{ data: profiles, error: e2 }, voteCounts] = await Promise.all([
+    supabase.from("profiles").select("id, pseudo").in("id", userIds),
+    fetchReviewVoteCounts(reviews.map((r) => r.id)),
+  ]);
   if (e2) throw e2;
 
   const pseudoById = Object.fromEntries((profiles || []).map((p) => [p.id, p.pseudo]));
-  return reviews.map((r) => ({ ...r, profiles: { pseudo: pseudoById[r.user_id] || "Anonyme" } }));
+  return reviews.map((r) => ({
+    ...r,
+    profiles: { pseudo: pseudoById[r.user_id] || "Anonyme" },
+    up: voteCounts[r.id]?.up || 0,
+    down: voteCounts[r.id]?.down || 0,
+  }));
 }
 
 export async function fetchMyReview(comicId, userId) {
   const { data, error } = await supabase.from("reviews").select("*").eq("comic_id", comicId).eq("user_id", userId).maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// ---------- Votes (pouce haut / pouce bas) sur les avis ----------
+export async function fetchReviewVoteCounts(reviewIds) {
+  if (!reviewIds || !reviewIds.length) return {};
+  const { data, error } = await supabase.from("review_votes").select("review_id, vote").in("review_id", reviewIds);
+  if (error) throw error;
+  const counts = {};
+  (data || []).forEach((v) => {
+    if (!counts[v.review_id]) counts[v.review_id] = { up: 0, down: 0 };
+    if (v.vote === 1) counts[v.review_id].up++;
+    else counts[v.review_id].down++;
+  });
+  return counts;
+}
+
+export async function fetchMyReviewVotes(reviewIds, userId) {
+  if (!reviewIds || !reviewIds.length || !userId) return {};
+  const { data, error } = await supabase
+    .from("review_votes")
+    .select("review_id, vote")
+    .in("review_id", reviewIds)
+    .eq("user_id", userId);
+  if (error) throw error;
+  return Object.fromEntries((data || []).map((v) => [v.review_id, v.vote]));
+}
+
+export async function setReviewVote(reviewId, userId, vote) {
+  const { error } = await supabase
+    .from("review_votes")
+    .upsert({ review_id: reviewId, user_id: userId, vote, updated_at: new Date().toISOString() }, { onConflict: "review_id,user_id" });
+  if (error) throw error;
+}
+
+export async function removeReviewVote(reviewId, userId) {
+  const { error } = await supabase.from("review_votes").delete().eq("review_id", reviewId).eq("user_id", userId);
+  if (error) throw error;
 }
 
 // Le webhook natif Supabase (schéma supabase_functions) n'est pas disponible sur ce
