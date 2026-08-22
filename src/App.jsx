@@ -661,12 +661,11 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
 }
 
 // Petit encart "dernières évolutions du classement" — même gabarit compact que la note moyenne
-// générale, pas une section pleine largeur. Liste les 10 humoristes dont le rang a le plus
+// générale, pas une section pleine largeur. Liste les 5 humoristes dont le rang a le plus
 // récemment bougé (montée ou descente, peu importe l'ampleur), triés du plus récent au plus
-// ancien, dans une liste resserrée avec défilement interne. Repose sur le même calcul de
-// tendance (7 jours) que les badges du classement.
+// ancien. Repose sur le même calcul de tendance (7 jours) que les badges du classement.
 function RecentRankMovesCard({ comicsWithStats, onOpen }) {
-  const moves = useMemo(() => computeRecentRankMoves(comicsWithStats, 10), [comicsWithStats]);
+  const moves = useMemo(() => computeRecentRankMoves(comicsWithStats, 5), [comicsWithStats]);
   if (moves.length === 0) return null;
   return (
     <div style={{
@@ -674,7 +673,7 @@ function RecentRankMovesCard({ comicsWithStats, onOpen }) {
       borderRadius: 16, padding: "18px 20px", minWidth: 240,
     }}>
       <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>Dernières évolutions</div>
-      <div style={{ display: "flex", flexDirection: "column", maxHeight: 220, overflowY: "auto" }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
         {moves.map(({ comic, delta }) => (
           <button key={comic.id} onClick={() => onOpen(comic.id)} style={{
             width: "100%", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
