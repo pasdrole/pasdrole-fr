@@ -3842,6 +3842,15 @@ export default function App() {
   useEffect(() => {
     if (nav.page === "home") setMatchVoteTick((t) => t + 1);
   }, [nav.page]);
+
+  // Remonte en haut de la page à chaque changement de rubrique/fiche (clic nav, carte, bouton
+  // retour, navigateur précédent/suivant...). Sans ça, le routing SPA (pushState, pas de vrai
+  // rechargement) conserve la position de scroll de la page précédente : si on était descendu
+  // en bas de "Classements" puis qu'on clique "Duel", on atterrit en bas de la page Duel au lieu
+  // du haut — c'est exactement le bug remonté.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [nav.page, nav.id, nav.slug, nav.matchSlug, nav.genre, nav.twitchLogin]);
   const openRandomMatch = useCallback(() => {
     if (comics.length < 2) return;
     const pairs = computeUnvotedMatchPairs(comics);
