@@ -1848,13 +1848,42 @@ function CombatDuMoment({ onOpenComic, sharedCombatId }) {
   // Combat ouvert via un lien /combat/{id} partagé. S'il s'agit déjà du combat du moment,
   // rien à faire de plus (il s'affiche normalement, votable). Sinon (combat terminé depuis,
   // ou différent), on va le chercher spécifiquement pour l'afficher en lecture seule.
+  // Le flag `cancelled` évite qu'une requête lancée avant que `combat` ne soit connu (donc
+  // avant de savoir que sharedCombatId == combat.id) ne vienne écraser l'état une fois résolue,
+  // après coup, en réaffichant en double le même combat sous forme de "combat partagé".
   useEffect(() => {
     if (!sharedCombatId) { setSharedCombat(null); setSharedNotFound(false); return; }
     if (combat && sharedCombatId === combat.id) { setSharedCombat(null); setSharedNotFound(false); return; }
+    let cancelled = false;
     api.fetchCombatById(sharedCombatId)
-      .then((c) => { if (c) { setSharedCombat(c); setSharedNotFound(false); } else { setSharedCombat(null); setSharedNotFound(true); } })
-      .catch((e) => { console.error("Erreur combat partagé:", e); setSharedCombat(null); setSharedNotFound(true); });
+      .then((c) => {
+        if (cancelled) return;
+        if (c) { setSharedCombat(c); setSharedNotFound(false); } else { setSharedCombat(null); setSharedNotFound(true); }
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error("Erreur combat partagé:", e); setSharedCombat(null); setSharedNotFound(true);
+      });
+    return () => { cancelled = true; };
   }, [sharedCombatId, combat]);
+
+  // SEO/Open Graph dédié au lien partagé /combat/{id} : sans ça, la page reste sur les
+  // title/description/og:image génériques de l'accueil (nav.page vaut toujours "home" pour
+  // cette rubrique), donc un lien de combat partagé sur WhatsApp/Messenger/Twitter n'affiche
+  // aucun aperçu spécifique (pas de noms, pas de photo) — c'est le bug remonté ("l'url ne donne
+  // rien" au partage).
+  useEffect(() => {
+    if (!sharedCombatId) return;
+    const c = sharedCombat || (combat && combat.id === sharedCombatId ? combat : null);
+    if (!c) return;
+    applySEO({
+      title: `${c.comic_a.nom} vs ${c.comic_b.nom} — Sur le ring | ${SITE_NAME}`,
+      description: `${c.comic_a.nom} ou ${c.comic_b.nom} ? Découvre qui l'emporte dans ce combat sur ${SITE_NAME} et vote à ton tour.`,
+      image: c.comic_a.photo_url || c.comic_b.photo_url,
+      url: `${window.location.origin}/combat/${c.id}`,
+    });
+    return () => applySEO();
+  }, [sharedCombatId, sharedCombat, combat]);
 
   const shareCombat = async (c) => {
     if (!c) return;
