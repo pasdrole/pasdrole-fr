@@ -490,7 +490,7 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
                       borderRadius: "50%", background: C.gold, boxShadow: `0 0 6px 2px ${C.gold}`,
                     }} />
                   </span>
-                  <it.icon size={13} />
+                  <it.icon size={13} color={nav.page === "duel" ? C.gold : C.dim} />
                 </span>
               ) : <it.icon size={13} />} {it.label.toUpperCase()}</button>
           ))}
@@ -712,7 +712,7 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
             </div>
             <div style={{ color: C.text, fontSize: 13.5, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{c.nom}</div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-              <MikeFace avg10={c.avg10} votes={c.votes} size={20} />
+              <MikeFace avg10={c.avg10} votes={c.votes} size={42} />
               <div style={{ color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
             </div>
             <div style={{ textAlign: "center", color: C.dim2, fontSize: 10.5 }}>({c.votes})</div>
@@ -820,7 +820,7 @@ function ComicGrid({ comicsWithStats, onOpen, title }) {
               <div style={{ color: C.text, fontSize: 14.5, fontWeight: 700, marginBottom: 3 }}>{c.nom}</div>
               <div style={{ color: C.dim2, fontSize: 11.5, marginBottom: 10 }}>{c.pays} · depuis {c.debut}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <MikeFace avg10={c.avg10} votes={c.votes} size={18} />
+                <MikeFace avg10={c.avg10} votes={c.votes} size={40} />
                 <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: C.gold }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}</span>
                 <span style={{ fontSize: 11, color: C.dim2 }}>({c.votes} votes)</span>
               </div>
