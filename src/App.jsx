@@ -23,6 +23,22 @@ const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", 
 // En attendant, seul le compte admin continue de la voir (nav + pages), pour pouvoir la tester.
 const STREAMERS_PUBLIC = false;
 
+// Détecte un écran "mobile" (largeur ≤ 640px par défaut) et se met à jour en direct au
+// resize/à la rotation. Le site est presque entièrement en styles inline (pas de classes
+// CSS), donc les ajustements mobiles qui ne peuvent pas passer par une media query CSS
+// (taille du logo, structure du header...) passent par ce hook plutôt que par du CSS.
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= breakpoint : false));
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener ? mq.addEventListener("change", onChange) : mq.addListener(onChange);
+    return () => (mq.removeEventListener ? mq.removeEventListener("change", onChange) : mq.removeListener(onChange));
+  }, [breakpoint]);
+  return isMobile;
+}
+
 // Formatte une note pour l'affichage : 1 décimale avec virgule (fr-FR), mais sans le
 // ",0" quand la note arrondie tombe sur un chiffre rond (ex. "8/10" plutôt que "8,0/10").
 function formatNote(n) {
@@ -444,6 +460,7 @@ function AuthModal({ onClose, onAuthed }) {
 
 /* ---------- Header ---------- */
 function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onLogout, comicsWithStats, onOpenComic }) {
+  const isMobile = useIsMobile();
   const items = [
     { key: "home", label: "Accueil", icon: Home },
     { key: "ranking", label: "Classements", icon: LayoutGrid },
@@ -467,18 +484,51 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
 
   return (
     <header style={{ background: "rgba(21,19,24,0.9)", backdropFilter: "blur(14px)", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
-      <div style={{ maxWidth: 1220, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-        <div onClick={() => navigate("home")} style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-          <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ height: 168, width: "auto" }} />
-          <div style={{ fontSize: 10.5, color: C.text, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
-        </div>
-        <nav style={{ display: "flex", gap: 2 }}>
+      <div style={{
+        maxWidth: 1220, margin: "0 auto", padding: isMobile ? "10px 14px" : "14px 24px",
+        display: "flex", alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row",
+        gap: isMobile ? 8 : 24, flexWrap: isMobile ? "nowrap" : "wrap",
+      }}>
+        {isMobile ? (
+          // Version mobile : logo minuscule + nom sur une ligne, jamais 168px de haut qui
+          // mangeait tout l'écran une fois le header épinglé (sticky) en haut de page.
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <div onClick={() => navigate("home")} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ height: 34, width: "auto" }} />
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: 1, color: C.text }}>PASDRÔLE.FR</span>
+            </div>
+            {user ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button onClick={() => navigate("mine")} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                  <UserCircle size={20} color={C.gold} />
+                </button>
+                <button onClick={onLogout} title="Se déconnecter" style={{ background: "none", border: "none", cursor: "pointer" }}>
+                  <LogOut size={18} color={C.dim2} />
+                </button>
+              </div>
+            ) : (
+              <button onClick={onOpenAuth} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", color: C.text, fontSize: 12 }}>
+                <LogIn size={13} /> Connexion
+              </button>
+            )}
+          </div>
+        ) : (
+          <div onClick={() => navigate("home")} style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <img src="/logo-mike.png" alt="PasDrôle.fr" style={{ height: 168, width: "auto" }} />
+            <div style={{ fontSize: 10.5, color: C.text, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
+          </div>
+        )}
+        <nav style={{
+          display: "flex", gap: 2,
+          overflowX: isMobile ? "auto" : "visible", flexWrap: isMobile ? "nowrap" : "wrap",
+          WebkitOverflowScrolling: "touch", paddingBottom: isMobile ? 4 : 0,
+        }}>
           {items.map((it) => (
             <button key={it.key} onClick={() => navigate(it.key)} style={{
               display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer",
               padding: "9px 13px", borderRadius: 7, color: nav.page === it.key ? C.gold : C.dim,
               borderBottom: nav.page === it.key ? `2px solid ${C.gold}` : "2px solid transparent",
-              fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
+              fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, flexShrink: 0,
             }}>
               {it.key === "duel" ? (
                 // Petit halo doré qui orbite en continu autour des épées, pour attirer l'oeil
@@ -499,14 +549,14 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
               display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer",
               padding: "9px 13px", borderRadius: 7, color: nav.page === "admin" ? C.gold : C.dim,
               borderBottom: nav.page === "admin" ? `2px solid ${C.gold}` : "2px solid transparent",
-              fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
+              fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, flexShrink: 0,
             }}><Shield size={13} /> ADMIN</button>
           )}
         </nav>
 
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "8px 13px", minWidth: 180 }}>
+        <div style={{ marginLeft: isMobile ? 0 : "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ position: "relative", flex: isMobile ? "1 1 auto" : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "8px 13px", minWidth: isMobile ? 0 : 180 }}>
               <Search size={14} color={C.dim2} />
               <input
                 value={query}
@@ -536,7 +586,9 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
               </div>
             )}
           </div>
-          {user ? (
+          {/* Sur mobile, compte/déconnexion/connexion vivent déjà sur la ligne du logo —
+              pas besoin de les répéter ici, ça économise une ligne entière de header. */}
+          {!isMobile && (user ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button onClick={() => navigate("mine")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.text, fontSize: 12.5 }}>
                 <UserCircle size={16} color={C.gold} /> {profile?.pseudo || "Mon compte"}
@@ -549,7 +601,7 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
             <button onClick={onOpenAuth} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", color: C.text, fontSize: 12.5 }}>
               <LogIn size={14} /> Connexion
             </button>
-          )}
+          ))}
         </div>
       </div>
     </header>
@@ -638,25 +690,26 @@ function computeRecentRankMoves(comicsWithStats, limit = 10) {
 }
 /* ---------- Hero / listing ---------- */
 function Hero({ comicsWithStats, onOpen }) {
+  const isMobile = useIsMobile();
   const allVotes = comicsWithStats.reduce((s, c) => s + c.votes, 0);
   const avgs = comicsWithStats.map((c) => c.avg10).filter((v) => v > 0);
   const globalAvg = avgs.length ? avgs.reduce((a, b) => a + b, 0) / avgs.length : 0;
   return (
     <div style={{ borderBottom: `1px solid ${C.border}`, background: `linear-gradient(180deg, #0E0C11, ${C.bg})` }}>
-      <div style={{ maxWidth: 1220, margin: "0 auto", padding: "56px 24px 44px", display: "flex", gap: 40, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ maxWidth: 1220, margin: "0 auto", padding: isMobile ? "28px 18px 32px" : "56px 24px 44px", display: "flex", gap: isMobile ? 24 : 40, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 420px" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, color: C.gold, letterSpacing: 1.5, fontWeight: 600, marginBottom: 18, textTransform: "uppercase" }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.gold }} /> Notation par critères · communauté publique
           </div>
-          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, lineHeight: 0.98, letterSpacing: 0.5, color: C.text, margin: 0 }}>
+          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isMobile ? 34 : 56, lineHeight: 1, letterSpacing: 0.5, color: C.text, margin: 0 }}>
             NOTEZ. CLASSEZ.<br />FAITES ENTENDRE<br /><span style={{ color: C.gold }}>VOTRE RIRE.</span>
           </h1>
           <p style={{ color: C.dim, fontSize: 15.5, marginTop: 18, maxWidth: 440, lineHeight: 1.6 }}>
             PasDrôle.FR référence les humoristes français et internationaux, notés par le public sur l'écriture, le jeu de scène, l'originalité et la présence.
           </p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: 240 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, width: isMobile ? "100%" : "auto" }}>
+          <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: isMobile ? 0 : 240 }}>
             <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase" }}>La note moyenne générale</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 2px" }}>
               <MikeFace avg10={globalAvg} votes={allVotes} size={40} />
@@ -1185,6 +1238,7 @@ function EmojiPickerRow({ onPick }) {
 }
 
 function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
+  const isMobile = useIsMobile();
   const [comic, setComic] = useState(null);
   const [ratings, setRatings] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -1412,18 +1466,18 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const genreList = (comic.genres || "").split(",").map((s) => s.trim()).filter(Boolean);
 
   return (
-    <div style={{ maxWidth: 1220, margin: "0 auto", padding: "24px 24px 60px" }}>
+    <div style={{ maxWidth: 1220, margin: "0 auto", padding: isMobile ? "18px 14px 40px" : "24px 24px 60px" }}>
       <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 14, letterSpacing: 1, marginBottom: 18, padding: 0 }}>
         <ArrowLeft size={16} /> RETOUR
       </button>
 
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 420px" }}>
-          <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 30 }}>
+          <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: isMobile ? 18 : 30 }}>
             <div style={{ display: "flex", gap: 20, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
-              <PhotoPlaceholder size={100} label={comic.nom} imgSrc={comic.photo_url} />
+              <PhotoPlaceholder size={isMobile ? 74 : 100} label={comic.nom} imgSrc={comic.photo_url} />
               <div>
-                <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
+                <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isMobile ? 26 : 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
                 <div style={{ marginTop: 8 }}><CountryPill pays={comic.pays} /></div>
                 <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
                   {genreList.map((g) => (
@@ -2150,6 +2204,7 @@ function ComicSelect({ comics, value, onChange, placeholder, disabled }) {
 // (les votes déjà enregistrés sur cette paire précise, peu importe qui les a lancés) et on
 // l'affiche directement — pas besoin d'attendre un vote pour voir où en est ce duel.
 function DuelPicker({ comics, onOpenMatch }) {
+  const isMobile = useIsMobile();
   const [aId, setAId] = useState("");
   const [bId, setBId] = useState("");
   const [h2h, setH2h] = useState(null); // { votesA, votesB, total } une fois les deux choisis
@@ -2181,14 +2236,14 @@ function DuelPicker({ comics, onOpenMatch }) {
   return (
     <section style={{ maxWidth: 900, margin: "36px auto 0", padding: "0 24px" }}>
       <SectionTitle>CHOISIS TON DUEL</SectionTitle>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 12 }}>
         <ComicSelect
           comics={sorted}
           value={aId}
           onChange={(id) => { setAId(id); if (id === bId) setBId(""); }}
           placeholder="Choisis un humoriste…"
         />
-        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: C.dim2 }}>VS</span>
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: C.dim2, textAlign: "center" }}>VS</span>
         <ComicSelect
           comics={sorted.filter((c) => c.id !== aId)}
           value={bId}
