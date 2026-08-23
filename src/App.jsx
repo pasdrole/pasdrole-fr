@@ -3855,7 +3855,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Inter, sans-serif" }}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; } @keyframes pdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(63,184,120,0.55); } 50% { box-shadow: 0 0 0 9px rgba(63,184,120,0); } } @keyframes pdOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`* { box-sizing: border-box; } html, body { margin: 0; background: ${C.bg}; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; } @keyframes pdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(63,184,120,0.55); } 50% { box-shadow: 0 0 0 9px rgba(63,184,120,0); } } @keyframes pdOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       <Header nav={nav} navigate={goToPage} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} comicsWithStats={comicsWithStats} onOpenComic={openComic} />
 
