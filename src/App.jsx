@@ -16,7 +16,7 @@ const C = {
 };
 
 // Correspondance page interne <-> URL propre (pour le référencement et le partage de liens).
-const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", contact: "/contact", mine: "/mon-espace", admin: "/admin", streamers: "/streamers" };
+const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", duel: "/duel", contact: "/contact", mine: "/mon-espace", admin: "/admin", streamers: "/streamers" };
 
 // Rubrique Streamers : masquée au public tant que la donnée n'est pas assez riche.
 // Passe ce flag à true quand tu veux la rouvrir à tout le monde.
@@ -75,6 +75,40 @@ const MIKE_EXPRESSIONS = [
   { slug: "sarcastique", label: "Sarcastique", emoji: "😏", file: "12_sarcastique.svg" },
 ];
 const MIKE_EXPRESSION_BY_SLUG = Object.fromEntries(MIKE_EXPRESSIONS.map((e) => [e.slug, e]));
+
+// Choisit automatiquement l'expression de Mike la plus adaptée à une note publique sur 10
+// (la moyenne des votes de la communauté), pour que le mascot réagisse partout où une note
+// s'affiche — et pas seulement sur les quelques fiches où un·e admin a choisi une expression
+// à la main pour l'avis rédaction. "dormeur" couvre le cas "pas encore noté".
+// "surpris", "blase" et "sarcastique" restent volontairement de côté : réservés à des usages
+// contextuels futurs (rebond de classement, fiche inactive, chambrage sur un combat...).
+function mikeExpressionForNote(avg10, votes) {
+  if (!votes) return "dormeur"; // pas encore noté
+  if (avg10 >= 9) return "mdr";
+  if (avg10 >= 7.5) return "heureux";
+  if (avg10 >= 6) return "fier";
+  if (avg10 >= 4.5) return "reflexion";
+  if (avg10 >= 3) return "sceptique";
+  if (avg10 >= 1.5) return "decu";
+  if (avg10 > 0) return "colere";
+  return "choque";
+}
+
+// Petite tête de Mike réutilisable partout où une note s'affiche. `slug` prend le dessus
+// s'il est fourni (choix éditorial explicite) ; sinon dérivée automatiquement de la note.
+function MikeFace({ slug, avg10, votes, size = 28, style }) {
+  const finalSlug = slug || mikeExpressionForNote(avg10, votes);
+  const expr = MIKE_EXPRESSION_BY_SLUG[finalSlug];
+  if (!expr) return null;
+  return (
+    <img
+      src={`/${expr.file}`}
+      alt={expr.label}
+      title={expr.label}
+      style={{ width: size, height: size, objectFit: "contain", flexShrink: 0, ...style }}
+    />
+  );
+}
 
 // Poses "pleine figure" disponibles dans public/ (non utilisées ailleurs pour l'instant —
 // réserve pour de futurs états de l'UI : chargement, page vide, confirmation...).
@@ -414,6 +448,9 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
     { key: "home", label: "Accueil", icon: Home },
     { key: "ranking", label: "Classements", icon: LayoutGrid },
     { key: "comics", label: "Humoristes", icon: Users },
+    // Rubrique à part du "Sur le Ring" de l'accueil (combat du moment choisi en admin) — le
+    // Duel aléatoire, lui, oppose deux humoristes au hasard (ou choisis à la main) et vit ici.
+    { key: "duel", label: "Duel", icon: CrossedSwords },
     ...(STREAMERS_PUBLIC || profile?.role === "admin" ? [{ key: "streamers", label: "Streamers", icon: Video }] : []),
     { key: "contact", label: "Contact", icon: Mail },
   ];
@@ -608,8 +645,11 @@ function Hero({ comicsWithStats, onOpen }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: 240 }}>
             <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase" }}>La note moyenne générale</div>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold, margin: "6px 0 2px" }}>
-              {globalAvg > 0 ? formatNote(globalAvg) : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 2px" }}>
+              <MikeFace avg10={globalAvg} votes={allVotes} size={40} />
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold }}>
+                {globalAvg > 0 ? formatNote(globalAvg) : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
+              </div>
             </div>
             <Micros value={globalAvg} />
             <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
@@ -658,7 +698,10 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
               <PhotoPlaceholder size={74} label={c.nom} imgSrc={c.photo_url} />
             </div>
             <div style={{ color: C.text, fontSize: 13.5, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{c.nom}</div>
-            <div style={{ textAlign: "center", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+              <MikeFace avg10={c.avg10} votes={c.votes} size={20} />
+              <div style={{ color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
+            </div>
             <div style={{ textAlign: "center", color: C.dim2, fontSize: 10.5 }}>({c.votes})</div>
           </button>
           );
@@ -764,6 +807,7 @@ function ComicGrid({ comicsWithStats, onOpen, title }) {
               <div style={{ color: C.text, fontSize: 14.5, fontWeight: 700, marginBottom: 3 }}>{c.nom}</div>
               <div style={{ color: C.dim2, fontSize: 11.5, marginBottom: 10 }}>{c.pays} · depuis {c.debut}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <MikeFace avg10={c.avg10} votes={c.votes} size={18} />
                 <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: C.gold }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}</span>
                 <span style={{ fontSize: 11, color: C.dim2 }}>({c.votes} votes)</span>
               </div>
@@ -1020,10 +1064,12 @@ function RedactionCard({ comic }) {
         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, letterSpacing: 1, color: C.gold }}>L'AVIS DE MIKE</span>
       </div>
       {comic.note_redaction != null && (() => {
-        const expression = MIKE_EXPRESSION_BY_SLUG[comic.expression_redaction];
+        // Priorité à l'expression choisie à la main par l'admin ; à défaut, on la dérive
+        // automatiquement de la note (mieux qu'une fiche sans visage de Mike du tout).
+        const expression = MIKE_EXPRESSION_BY_SLUG[comic.expression_redaction]
+          || MIKE_EXPRESSION_BY_SLUG[mikeExpressionForNote(Number(comic.note_redaction), 1)];
         // Reprend le look du panneau du logo (fond noir, liseré doré) que Mike "brandit" —
-        // son expression (choisie par l'admin) déborde légèrement sur le panneau, comme sa
-        // tête sur le logo principal.
+        // son expression déborde légèrement sur le panneau, comme sa tête sur le logo principal.
         return (
           <div style={{ display: "flex", alignItems: "center", marginBottom: comic.avis_redaction ? 16 : 2 }}>
             {expression && (
@@ -1379,6 +1425,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: "wrap" }}>
+              <MikeFace avg10={avg10} votes={votes} size={54} />
               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? formatNote(avg10) : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
               <Micros value={avg10} size={18} />
               <span style={{ fontSize: 12, color: C.dim2 }}>{votes} vote{votes !== 1 ? "s" : ""}</span>
@@ -2035,6 +2082,111 @@ function MatchPage({ comicA, comicB, matchSlug, onNewMatch, onVoted, noMoreDuels
     </div>
   );
 }
+
+// Duo de menus déroulants pour choisir un duel précis plutôt que de le tirer au hasard.
+// Dès que les deux humoristes sont choisis, on va chercher le score head-to-head existant
+// (les votes déjà enregistrés sur cette paire précise, peu importe qui les a lancés) et on
+// l'affiche directement — pas besoin d'attendre un vote pour voir où en est ce duel.
+function DuelPicker({ comics, onOpenMatch }) {
+  const [aId, setAId] = useState("");
+  const [bId, setBId] = useState("");
+  const [h2h, setH2h] = useState(null); // { votesA, votesB, total } une fois les deux choisis
+  const [loading, setLoading] = useState(false);
+
+  const sorted = useMemo(() => [...comics].sort((a, b) => a.nom.localeCompare(b.nom, "fr")), [comics]);
+  const comicA = sorted.find((c) => c.id === aId);
+  const comicB = sorted.find((c) => c.id === bId);
+
+  useEffect(() => {
+    if (!comicA || !comicB) { setH2h(null); return; }
+    let cancelled = false;
+    setLoading(true);
+    const [ordA, ordB] = orderMatchPair(comicA, comicB);
+    api.fetchMatchVotes(ordA.id, ordB.id)
+      .then((votes) => {
+        if (cancelled) return;
+        setH2h({
+          votesA: votes.filter((v) => v.winner_id === comicA.id).length,
+          votesB: votes.filter((v) => v.winner_id === comicB.id).length,
+          total: votes.length,
+        });
+      })
+      .catch((e) => console.error("Erreur head-to-head:", e))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [comicA, comicB]);
+
+  return (
+    <section style={{ maxWidth: 900, margin: "36px auto 0", padding: "0 24px" }}>
+      <SectionTitle>CHOISIS TON DUEL</SectionTitle>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <select
+          value={aId}
+          onChange={(e) => { setAId(e.target.value); if (e.target.value === bId) setBId(""); }}
+          style={{ flex: "1 1 220px", background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "11px 13px", color: C.text, fontSize: 13.5 }}
+        >
+          <option value="">Choisis un humoriste…</option>
+          {sorted.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+        </select>
+        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: C.dim2 }}>VS</span>
+        <select
+          value={bId}
+          onChange={(e) => setBId(e.target.value)}
+          disabled={!aId}
+          style={{ flex: "1 1 220px", background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "11px 13px", color: C.text, fontSize: 13.5, opacity: aId ? 1 : 0.5 }}
+        >
+          <option value="">Choisis son adversaire…</option>
+          {sorted.filter((c) => c.id !== aId).map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+        </select>
+      </div>
+
+      {comicA && comicB && (
+        <div style={{ marginTop: 22, background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 14, padding: "20px 22px" }}>
+          {loading ? (
+            <div style={{ color: C.dim2, fontSize: 13, textAlign: "center" }}>Chargement du face-à-face...</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", gap: 12, textAlign: "center", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{comicA.nom}</div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: C.gold }}>{h2h?.votesA ?? 0}</div>
+                  <div style={{ color: C.dim2, fontSize: 11 }}>victoire{(h2h?.votesA ?? 0) !== 1 ? "s" : ""}</div>
+                </div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: C.dim2 }}>VS</div>
+                <div>
+                  <div style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{comicB.nom}</div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: C.gold }}>{h2h?.votesB ?? 0}</div>
+                  <div style={{ color: C.dim2, fontSize: 11 }}>défaite{(h2h?.votesA ?? 0) !== 1 ? "s" : ""}</div>
+                </div>
+              </div>
+              <div style={{ textAlign: "center", color: C.dim2, fontSize: 11.5, marginTop: 10 }}>
+                {h2h?.total ? `${h2h.total} vote${h2h.total !== 1 ? "s" : ""} enregistré${h2h.total !== 1 ? "s" : ""} sur ce duel` : "Aucun vote pour l'instant sur ce duel précis"}
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
+                <GoldButton onClick={() => onOpenMatch(comicA, comicB)}>Voir le duel et voter</GoldButton>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Rubrique "Duel" à part entière (menu principal), distincte de "Sur le Ring" affiché en
+// accueil : ici, n'importe quelle paire d'humoristes peut s'affronter, au hasard ou choisie
+// à la main via les deux menus déroulants, plutôt qu'un seul combat retenu par l'admin.
+function DuelPage({ comics, onLaunchRandom, exhausted, onOpenMatch }) {
+  useEffect(() => { applySEO({ title: `Duel entre humoristes | ${SITE_NAME}`, description: "Oppose deux humoristes au hasard ou choisis-les toi-même, et vote pour celui qui te fait le plus rire.", url: `${window.location.origin}/duel` }); return () => applySEO(); }, []);
+  return (
+    <div style={{ paddingBottom: 40 }}>
+      <MatchCTA onLaunch={onLaunchRandom} exhausted={exhausted} />
+      <DuelWinnersStrip comics={comics} />
+      <DuelPicker comics={comics} onOpenMatch={onOpenMatch} />
+    </div>
+  );
+}
+
 function MyActivityPage({ user, profile, onOpenComic }) {
   const [data, setData] = useState(null);
   useEffect(() => { if (user) api.fetchMyActivity(user.id).then(setData); }, [user]);
@@ -3588,6 +3740,15 @@ export default function App() {
     window.history.pushState({}, "", `/match/${pick.slug}`);
     setNav({ page: "match", comicAId: pick.a.id, comicBId: pick.b.id, matchSlug: pick.slug });
   }, [comics]);
+  // Ouvre un duel entre deux humoristes choisis à la main (menus déroulants de la rubrique
+  // Duel), en réutilisant exactement la même page/URL que pour un duel tiré au hasard.
+  const openChosenMatch = useCallback((comicA, comicB) => {
+    if (!comicA || !comicB || comicA.id === comicB.id) return;
+    const slug = matchSlugFor(comicA, comicB);
+    lastMatchRef.current = slug;
+    window.history.pushState({}, "", `/match/${slug}`);
+    setNav({ page: "match", comicAId: comicA.id, comicBId: comicB.id, matchSlug: slug });
+  }, []);
   const openGenre = useCallback((genre) => {
     const slug = slugifyGenre(genre);
     window.history.pushState({}, "", `/genre/${slug}`);
@@ -3643,15 +3804,18 @@ export default function App() {
       {nav.page === "home" && (
         <>
           <Hero comicsWithStats={comicsWithStats} onOpen={openComic} />
-          <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
+          {/* "Sur le Ring" en priorité juste sous le Hero : c'est le mécanisme qui convertit
+              le mieux (vote binaire, partageable) — on ne l'enterre plus sous le classement.
+              Le Duel aléatoire a sa propre rubrique (menu "Duel") pour ne pas se confondre
+              avec ce combat-ci, choisi et clôturé à la main par l'admin. */}
           <CombatDuMoment onOpenComic={openComic} sharedCombatId={nav.sharedCombatId} />
-          <MatchCTA onLaunch={openRandomMatch} exhausted={allDuelsDone} />
-          <DuelWinnersStrip comics={comics} />
+          <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={7} title="TOP DU MOMENT" />
           <LatestReviews onOpen={openComic} />
         </>
       )}
       {nav.page === "ranking" && <TopStrip comicsWithStats={comicsWithStats} onOpen={openComic} limit={comicsWithStats.length} title="CLASSEMENT COMPLET" />}
       {nav.page === "comics" && <ComicGrid comicsWithStats={filtered} onOpen={openComic} title="HUMORISTES" />}
+      {nav.page === "duel" && <DuelPage comics={comics} onLaunchRandom={openRandomMatch} exhausted={allDuelsDone} onOpenMatch={openChosenMatch} />}
       {nav.page === "genre" && <GenrePage genre={nav.genre} comicsWithStats={comicsWithStats} onOpen={openComic} />}
       {nav.page === "match" && (() => {
         const comicA = comics.find((c) => c.id === nav.comicAId);
