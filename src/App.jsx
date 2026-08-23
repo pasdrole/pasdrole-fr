@@ -1835,6 +1835,7 @@ function CombatDuMoment({ onOpenComic, sharedCombatId }) {
   const [copied, setCopied] = useState(false);
   const [sharedCombat, setSharedCombat] = useState(null);
   const [sharedNotFound, setSharedNotFound] = useState(false);
+  const sectionRef = useRef(null);
 
   const load = useCallback(async () => {
     const active = await api.fetchActiveCombat().catch((e) => { console.error("Erreur combat actif:", e); return null; });
@@ -1884,6 +1885,27 @@ function CombatDuMoment({ onOpenComic, sharedCombatId }) {
     });
     return () => applySEO();
   }, [sharedCombatId, sharedCombat, combat]);
+
+  // Amène directement sur la rubrique "Sur le ring" quand on arrive via un lien /combat/{id}
+  // partagé, au lieu de laisser l'utilisateur en haut de l'accueil et devoir scroller pour la
+  // trouver. On attend d'avoir les données (combat actif reconnu, combat partagé chargé, ou
+  // "combat introuvable" constaté) pour que la page ait déjà sa hauteur quasi définitive — sinon
+  // le calcul de position serait faux et le scroll suivant (chargement d'image, etc.) le décalerait.
+  const scrolledToSectionRef = useRef(false);
+  useEffect(() => {
+    if (!sharedCombatId || scrolledToSectionRef.current) return;
+    const ready = sharedNotFound || sharedCombat || (combat && combat.id === sharedCombatId);
+    if (!ready) return;
+    scrolledToSectionRef.current = true;
+    requestAnimationFrame(() => {
+      const el = sectionRef.current;
+      if (!el) return;
+      const header = document.querySelector("header");
+      const headerH = header ? header.getBoundingClientRect().height : 0;
+      const y = el.getBoundingClientRect().top + window.scrollY - headerH - 16;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    });
+  }, [sharedCombatId, sharedCombat, sharedNotFound, combat]);
 
   const shareCombat = async (c) => {
     if (!c) return;
@@ -1937,7 +1959,7 @@ function CombatDuMoment({ onOpenComic, sharedCombatId }) {
   const sharedPctB = 100 - sharedPctA;
 
   return (
-    <section style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
+    <section ref={sectionRef} style={{ maxWidth: 1220, margin: "0 auto", padding: "40px 24px 0" }}>
       <SectionTitle>SUR LE RING</SectionTitle>
 
       {sharedCombat && (
