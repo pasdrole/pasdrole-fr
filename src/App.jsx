@@ -23,6 +23,13 @@ const PAGE_PATHS = { home: "/", ranking: "/classements", comics: "/humoristes", 
 // En attendant, seul le compte admin continue de la voir (nav + pages), pour pouvoir la tester.
 const STREAMERS_PUBLIC = false;
 
+// Formatte une note pour l'affichage : 1 décimale avec virgule (fr-FR), mais sans le
+// ",0" quand la note arrondie tombe sur un chiffre rond (ex. "8/10" plutôt que "8,0/10").
+function formatNote(n) {
+  const rounded = Math.round(n * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(".", ",");
+}
+
 // Empreinte navigateur simple (anti-fraude "Sur le ring", en complément de l'IP vérifiée côté serveur).
 // Ne cherche pas à être infalsifiable — juste à rendre le "vider son localStorage pour revoter" inefficace.
 // Calculée une fois et mise en cache en session (pas besoin de la recalculer à chaque vote).
@@ -602,7 +609,7 @@ function Hero({ comicsWithStats, onOpen }) {
           <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: 240 }}>
             <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase" }}>La note moyenne générale</div>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold, margin: "6px 0 2px" }}>
-              {globalAvg > 0 ? globalAvg.toFixed(1).replace(".", ",") : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
+              {globalAvg > 0 ? formatNote(globalAvg) : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
             </div>
             <Micros value={globalAvg} />
             <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
@@ -651,7 +658,7 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
               <PhotoPlaceholder size={74} label={c.nom} imgSrc={c.photo_url} />
             </div>
             <div style={{ color: C.text, fontSize: 13.5, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{c.nom}</div>
-            <div style={{ textAlign: "center", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? c.avg10.toFixed(1).replace(".", ",") : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
+            <div style={{ textAlign: "center", color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
             <div style={{ textAlign: "center", color: C.dim2, fontSize: 10.5 }}>({c.votes})</div>
           </button>
           );
@@ -757,7 +764,7 @@ function ComicGrid({ comicsWithStats, onOpen, title }) {
               <div style={{ color: C.text, fontSize: 14.5, fontWeight: 700, marginBottom: 3 }}>{c.nom}</div>
               <div style={{ color: C.dim2, fontSize: 11.5, marginBottom: 10 }}>{c.pays} · depuis {c.debut}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: C.gold }}>{c.avg10 > 0 ? c.avg10.toFixed(1).replace(".", ",") : "—"}</span>
+                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: C.gold }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}</span>
                 <span style={{ fontSize: 11, color: C.dim2 }}>({c.votes} votes)</span>
               </div>
             </div>
@@ -1030,7 +1037,7 @@ function RedactionCard({ comic }) {
               padding: expression ? "9px 16px 9px 24px" : "9px 16px", display: "flex", alignItems: "baseline", gap: 3,
             }}>
               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: C.gold, lineHeight: 1 }}>
-                {Number(comic.note_redaction).toFixed(1).replace(".", ",")}
+                {formatNote(Number(comic.note_redaction))}
               </span>
               <span style={{ fontSize: 13, color: C.goldSoft, fontFamily: "Inter" }}>/10</span>
             </div>
@@ -1194,7 +1201,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
       if (r.status === "fulfilled" && r.value.length > 0) {
         const { avg10: a, votes: v } = overallAvg(r.value);
         applySEO({
-          title: `${c.nom} — Noté ${a.toFixed(1).replace(".", ",")}/10 par le public | ${SITE_NAME}`,
+          title: `${c.nom} — Noté ${formatNote(a)}/10 par le public | ${SITE_NAME}`,
           description: c.bio || `Découvrez les notes et avis du public sur ${c.nom}, humoriste ${c.pays || ""}.`,
           image: c.photo_url,
           url: `${window.location.origin}/${c.slug}`,
@@ -1372,7 +1379,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? avg10.toFixed(1).replace(".", ",") : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? formatNote(avg10) : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
               <Micros value={avg10} size={18} />
               <span style={{ fontSize: 12, color: C.dim2 }}>{votes} vote{votes !== 1 ? "s" : ""}</span>
             </div>
