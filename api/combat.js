@@ -42,7 +42,11 @@ export default async function handler(req, res) {
       if (c && c.comic_a && c.comic_b) {
         title = `${c.comic_a.nom} vs ${c.comic_b.nom} — Sur le ring | PasDrôle.fr`;
         description = `${c.comic_a.nom} ou ${c.comic_b.nom} ? Découvre qui l'emporte dans ce combat sur PasDrôle.fr et vote à ton tour.`;
-        image = c.comic_a.photo_url || c.comic_b.photo_url || image;
+        // Image générée à la volée (api/combat-image.jsx) : les deux humoristes côte à côte,
+        // séparés par une rature rouge — plutôt que la photo brute d'un seul des deux, qui de
+        // toute façon pouvait être en .avif (format que WhatsApp affiche mais que Twitter/X et
+        // iMessage n'affichent pas dans un aperçu de lien).
+        image = `${origin}/api/combat-image?id=${encodeURIComponent(id)}`;
       }
     } catch (e) {
       // En cas de souci réseau/API, on garde les valeurs par défaut plutôt que de planter la page.
