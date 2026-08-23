@@ -2096,7 +2096,56 @@ function MatchPage({ comicA, comicB, matchSlug, onNewMatch, onVoted, noMoreDuels
   );
 }
 
-// Duo de menus déroulants pour choisir un duel précis plutôt que de le tirer au hasard.
+// Sélecteur d'humoriste "combobox" : un champ de recherche (au lieu d'un <select> natif
+// interminable à scroller parmi 200+ noms) qui ouvre une liste déroulante avec photo,
+// filtrée en direct à la frappe — même logique que la recherche du header.
+function ComicSelect({ comics, value, onChange, placeholder, disabled }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = comics.find((c) => c.id === value) || null;
+  const displayValue = open ? query : (selected ? selected.nom : "");
+  const filtered = comics.filter((c) => c.nom.toLowerCase().includes(query.trim().toLowerCase()));
+
+  const pick = (c) => { onChange(c.id); setQuery(""); setOpen(false); };
+
+  return (
+    <div style={{ position: "relative", flex: "1 1 220px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 13px", opacity: disabled ? 0.5 : 1 }}>
+        <Search size={14} color={C.dim2} />
+        <input
+          value={displayValue}
+          disabled={disabled}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { setQuery(""); setOpen(true); }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={placeholder}
+          style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontSize: 13.5 }}
+        />
+      </div>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", overflowY: "auto", maxHeight: 280, zIndex: 60, boxShadow: "0 12px 24px -8px rgba(0,0,0,0.5)" }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "12px 14px", fontSize: 12.5, color: C.dim2 }}>Aucun résultat</div>
+          ) : (
+            filtered.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onMouseDown={() => pick(c)}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", textAlign: "left", borderBottom: `1px solid ${C.border}` }}
+              >
+                <PhotoPlaceholder size={30} label={c.nom} imgSrc={c.photo_url} />
+                <span style={{ fontSize: 13, color: C.text }}>{c.nom}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Duo de sélecteurs pour choisir un duel précis plutôt que de le tirer au hasard.
 // Dès que les deux humoristes sont choisis, on va chercher le score head-to-head existant
 // (les votes déjà enregistrés sur cette paire précise, peu importe qui les a lancés) et on
 // l'affiche directement — pas besoin d'attendre un vote pour voir où en est ce duel.
@@ -2133,24 +2182,20 @@ function DuelPicker({ comics, onOpenMatch }) {
     <section style={{ maxWidth: 900, margin: "36px auto 0", padding: "0 24px" }}>
       <SectionTitle>CHOISIS TON DUEL</SectionTitle>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <select
+        <ComicSelect
+          comics={sorted}
           value={aId}
-          onChange={(e) => { setAId(e.target.value); if (e.target.value === bId) setBId(""); }}
-          style={{ flex: "1 1 220px", background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "11px 13px", color: C.text, fontSize: 13.5 }}
-        >
-          <option value="">Choisis un humoriste…</option>
-          {sorted.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-        </select>
+          onChange={(id) => { setAId(id); if (id === bId) setBId(""); }}
+          placeholder="Choisis un humoriste…"
+        />
         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: C.dim2 }}>VS</span>
-        <select
+        <ComicSelect
+          comics={sorted.filter((c) => c.id !== aId)}
           value={bId}
-          onChange={(e) => setBId(e.target.value)}
+          onChange={setBId}
           disabled={!aId}
-          style={{ flex: "1 1 220px", background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "11px 13px", color: C.text, fontSize: 13.5, opacity: aId ? 1 : 0.5 }}
-        >
-          <option value="">Choisis son adversaire…</option>
-          {sorted.filter((c) => c.id !== aId).map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-        </select>
+          placeholder="Choisis son adversaire…"
+        />
       </div>
 
       {comicA && comicB && (
@@ -2169,7 +2214,7 @@ function DuelPicker({ comics, onOpenMatch }) {
                 <div>
                   <div style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{comicB.nom}</div>
                   <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: C.gold }}>{h2h?.votesB ?? 0}</div>
-                  <div style={{ color: C.dim2, fontSize: 11 }}>défaite{(h2h?.votesA ?? 0) !== 1 ? "s" : ""}</div>
+                  <div style={{ color: C.dim2, fontSize: 11 }}>victoire{(h2h?.votesB ?? 0) !== 1 ? "s" : ""}</div>
                 </div>
               </div>
               <div style={{ textAlign: "center", color: C.dim2, fontSize: 11.5, marginTop: 10 }}>
