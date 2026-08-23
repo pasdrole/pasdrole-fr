@@ -479,7 +479,20 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
               padding: "9px 13px", borderRadius: 7, color: nav.page === it.key ? C.gold : C.dim,
               borderBottom: nav.page === it.key ? `2px solid ${C.gold}` : "2px solid transparent",
               fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1,
-            }}><it.icon size={13} /> {it.label.toUpperCase()}</button>
+            }}>
+              {it.key === "duel" ? (
+                // Petit halo doré qui orbite en continu autour des épées, pour attirer l'oeil
+                // sur cette rubrique — un point lumineux qui tourne, pas un simple pulse.
+                <span style={{ position: "relative", width: 13, height: 13, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ position: "absolute", inset: -3, animation: "pdOrbit 2.4s linear infinite", pointerEvents: "none" }}>
+                    <span style={{
+                      position: "absolute", top: -2, left: "50%", width: 4, height: 4, marginLeft: -2,
+                      borderRadius: "50%", background: C.gold, boxShadow: `0 0 6px 2px ${C.gold}`,
+                    }} />
+                  </span>
+                  <it.icon size={13} />
+                </span>
+              ) : <it.icon size={13} />} {it.label.toUpperCase()}</button>
           ))}
           {profile?.role === "admin" && (
             <button onClick={() => navigate("admin")} style={{
@@ -3797,7 +3810,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Inter, sans-serif" }}>
-      <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; } @keyframes pdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(63,184,120,0.55); } 50% { box-shadow: 0 0 0 9px rgba(63,184,120,0); } }`}</style>
+      <style>{`* { box-sizing: border-box; } body { margin: 0; } ::-webkit-scrollbar { height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; } @keyframes pdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(63,184,120,0.55); } 50% { box-shadow: 0 0 0 9px rgba(63,184,120,0); } } @keyframes pdOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       <Header nav={nav} navigate={goToPage} query={query} setQuery={setQuery} user={user} profile={profile} onOpenAuth={() => setShowAuth(true)} onLogout={logout} comicsWithStats={comicsWithStats} onOpenComic={openComic} />
 
