@@ -708,19 +708,35 @@ function Hero({ comicsWithStats, onOpen }) {
             PasDrôle.FR référence les humoristes français et internationaux, notés par le public sur l'écriture, le jeu de scène, l'originalité et la présence.
           </p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, width: isMobile ? "100%" : "auto" }}>
-          <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px", minWidth: isMobile ? 0 : 240 }}>
-            <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase" }}>La note moyenne générale</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 2px" }}>
-              <MikeFace avg10={globalAvg} votes={allVotes} size={40} />
-              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold }}>
-                {globalAvg > 0 ? formatNote(globalAvg) : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
-              </div>
-            </div>
-            <Micros value={globalAvg} />
-            <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, width: isMobile ? "100%" : 420 }}>
+          <div style={{
+            position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 16,
+            overflow: "hidden", border: `1px solid ${C.border}`, background: "#000",
+          }}>
+            <video
+              src="/hero-mike.mp4"
+              poster="/hero-mike-poster.jpg"
+              autoPlay
+              muted
+              loop
+              playsInline
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           </div>
-          <RecentRankMovesCard comicsWithStats={comicsWithStats} onOpen={onOpen} />
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16 }}>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px" }}>
+              <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase" }}>La note moyenne générale</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 2px" }}>
+                <MikeFace avg10={globalAvg} votes={allVotes} size={40} />
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, color: C.gold }}>
+                  {globalAvg > 0 ? formatNote(globalAvg) : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
+                </div>
+              </div>
+              <Micros value={globalAvg} />
+              <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
+            </div>
+            <RecentRankMovesCard comicsWithStats={comicsWithStats} onOpen={onOpen} />
+          </div>
         </div>
       </div>
     </div>
@@ -787,7 +803,7 @@ function RecentRankMovesCard({ comicsWithStats, onOpen }) {
   return (
     <div style={{
       background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`,
-      borderRadius: 16, padding: "18px 20px", minWidth: 240,
+      borderRadius: 16, padding: "18px 20px", flex: 1, minWidth: 0,
     }}>
       <div style={{ fontSize: 11, color: C.dim2, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>Dernières évolutions</div>
       <div style={{ display: "flex", flexDirection: "column" }}>
