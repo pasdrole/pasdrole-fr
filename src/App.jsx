@@ -1871,6 +1871,7 @@ function DuelWinnersStrip({ comics }) {
 // jusqu'à clôture manuelle. Le résultat du dernier combat clôturé reste affiché en permanence
 // sous la zone de vote (qu'un nouveau combat soit lancé ou non), et ouvre l'historique complet au clic.
 function CombatDuMoment({ onOpenComic, sharedCombatId }) {
+  const isMobile = useIsMobile();
   const [combat, setCombat] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -2012,7 +2013,7 @@ function CombatDuMoment({ onOpenComic, sharedCombatId }) {
           <div style={{ fontSize: 10.5, color: C.dim2, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>
             Combat partagé {sharedCombat.is_active ? "" : "— terminé"}
           </div>
-          <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 14, alignItems: "center", justifyContent: "center" }}>
             <MatchFighterCard comic={sharedCombat.comic_a} picked isWinner={sharedCombat.votesA >= sharedCombat.votesB} pct={sharedPctA} disabled onPick={() => {}} />
             <CrossedSwords size={22} />
             <MatchFighterCard comic={sharedCombat.comic_b} picked isWinner={sharedCombat.votesB > sharedCombat.votesA} pct={sharedPctB} disabled onPick={() => {}} />
@@ -2033,7 +2034,7 @@ function CombatDuMoment({ onOpenComic, sharedCombatId }) {
       )}
 
       {combat ? (
-        <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 14, alignItems: "center", justifyContent: "center" }}>
           <MatchFighterCard comic={combat.comic_a} picked={hasVoted} isWinner={combat.votesA >= combat.votesB} pct={pctA} disabled={hasVoted || voting} onPick={() => vote(combat.comic_a_id)} />
           <CrossedSwords size={26} />
           <MatchFighterCard comic={combat.comic_b} picked={hasVoted} isWinner={combat.votesB > combat.votesA} pct={pctB} disabled={hasVoted || voting} onPick={() => vote(combat.comic_b_id)} />
