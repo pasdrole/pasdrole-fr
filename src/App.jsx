@@ -518,15 +518,15 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
             <div style={{ fontSize: 10.5, color: C.text, letterSpacing: 1.4, textAlign: "center" }}>LE CLASSEMENT DES HUMORISTES PAR LE PUBLIC</div>
           </div>
         )}
-        <nav style={{
-          display: "flex", gap: 2,
-          overflowX: isMobile ? "auto" : "visible", flexWrap: isMobile ? "nowrap" : "wrap",
-          WebkitOverflowScrolling: "touch", paddingBottom: isMobile ? 4 : 0,
-        }}>
+        <nav style={
+          isMobile
+            ? { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2 }
+            : { display: "flex", gap: 2, flexWrap: "wrap" }
+        }>
           {items.map((it) => (
             <button key={it.key} onClick={() => navigate(it.key)} style={{
-              display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer",
-              padding: "9px 13px", borderRadius: 7, color: nav.page === it.key ? C.gold : C.dim,
+              display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-start", gap: 6, background: "none", border: "none", cursor: "pointer",
+              padding: "9px 8px", borderRadius: 7, color: nav.page === it.key ? C.gold : C.dim,
               borderBottom: nav.page === it.key ? `2px solid ${C.gold}` : "2px solid transparent",
               fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, flexShrink: 0,
             }}>
@@ -546,8 +546,8 @@ function Header({ nav, navigate, query, setQuery, user, profile, onOpenAuth, onL
           ))}
           {profile?.role === "admin" && (
             <button onClick={() => navigate("admin")} style={{
-              display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer",
-              padding: "9px 13px", borderRadius: 7, color: nav.page === "admin" ? C.gold : C.dim,
+              display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-start", gap: 6, background: "none", border: "none", cursor: "pointer",
+              padding: "9px 8px", borderRadius: 7, color: nav.page === "admin" ? C.gold : C.dim,
               borderBottom: nav.page === "admin" ? `2px solid ${C.gold}` : "2px solid transparent",
               fontSize: 13, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, flexShrink: 0,
             }}><Shield size={13} /> ADMIN</button>
