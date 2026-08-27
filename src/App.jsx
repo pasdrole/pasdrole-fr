@@ -3,7 +3,7 @@ import {
   Plus, X, ArrowLeft, Search, Home, LayoutGrid, Users, Shield, Star, Mail,
   TrendingUp, TrendingDown, Minus, Calendar, Crown, ChevronRight, ImageUp, LogIn, LogOut, UserCircle,
   FileJson, Check, AlertTriangle, Trash2, Eye, EyeOff, Wand2, Pencil, Skull, ExternalLink, Globe, Share, Video,
-  ThumbsUp, ThumbsDown,
+  ThumbsUp, ThumbsDown, Play,
 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "./supabaseClient";
@@ -694,6 +694,14 @@ function Hero({ comicsWithStats, onOpen }) {
   const allVotes = comicsWithStats.reduce((s, c) => s + c.votes, 0);
   const avgs = comicsWithStats.map((c) => c.avg10).filter((v) => v > 0);
   const globalAvg = avgs.length ? avgs.reduce((a, b) => a + b, 0) / avgs.length : 0;
+  const videoRef = useRef(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const playVideo = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = false;
+    v.play();
+  };
   return (
     <div style={{ borderBottom: `1px solid ${C.border}`, background: `linear-gradient(180deg, #0E0C11, ${C.bg})` }}>
       <div style={{ maxWidth: 1220, margin: "0 auto", padding: isMobile ? "28px 18px 32px" : "56px 24px 44px", display: "flex", gap: isMobile ? 24 : 40, alignItems: "flex-start", flexWrap: "wrap" }}>
@@ -714,14 +722,35 @@ function Hero({ comicsWithStats, onOpen }) {
             overflow: "hidden", border: `1px solid ${C.border}`, background: "#000",
           }}>
             <video
+              ref={videoRef}
               src="/hero-mike.mp4"
               poster="/hero-mike-poster.jpg"
-              autoPlay
-              muted
-              loop
+              controls={videoPlaying}
               playsInline
+              onPlay={() => setVideoPlaying(true)}
+              onPause={() => setVideoPlaying(false)}
+              onEnded={(e) => { e.currentTarget.currentTime = 0; setVideoPlaying(false); }}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
+            {!videoPlaying && (
+              <button
+                onClick={playVideo}
+                aria-label="Lire la vidéo avec le son"
+                style={{
+                  position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(0,0,0,0.22)", border: "none", cursor: "pointer", padding: 0,
+                }}
+              >
+                <span style={{
+                  width: 60, height: 60, borderRadius: "50%",
+                  background: `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
+                }}>
+                  <Play size={24} color="#1A1509" fill="#1A1509" style={{ marginLeft: 3 }} />
+                </span>
+              </button>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16 }}>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px 28px" }}>
