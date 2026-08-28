@@ -1522,28 +1522,30 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 420px" }}>
           <div style={{ background: `linear-gradient(165deg, ${C.panel2}, ${C.panel})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: isMobile ? 18 : 30 }}>
-            <div style={{ display: "flex", gap: 20, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
-              <PhotoPlaceholder size={isMobile ? 74 : 100} label={comic.nom} imgSrc={comic.photo_url} />
-              <div>
-                <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isMobile ? 26 : 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
-                <div style={{ marginTop: 8 }}><CountryPill pays={comic.pays} /></div>
-                <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  {genreList.map((g) => (
-                    <ClickablePill key={g} title={`Voir tous les humoristes ${g}`} onClick={() => onOpenGenre(g)}>{g}</ClickablePill>
-                  ))}
-                  <Pill>depuis {comic.debut}</Pill>
-                  {computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "space-between", gap: 20, marginBottom: 20, paddingBottom: 20, borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+                <PhotoPlaceholder size={isMobile ? 74 : 100} label={comic.nom} imgSrc={comic.photo_url} />
+                <div>
+                  <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isMobile ? 26 : 34, color: C.text, margin: 0 }}>{comic.nom}</h1>
+                  <div style={{ marginTop: 8 }}><CountryPill pays={comic.pays} /></div>
+                  <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    {genreList.map((g) => (
+                      <ClickablePill key={g} title={`Voir tous les humoristes ${g}`} onClick={() => onOpenGenre(g)}>{g}</ClickablePill>
+                    ))}
+                    <Pill>depuis {comic.debut}</Pill>
+                    {computeAge(comic.date_naissance) !== null && <Pill>{computeAge(comic.date_naissance)} ans</Pill>}
+                  </div>
+                  <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`, border: "none", borderRadius: 9, padding: "8px 16px", cursor: "pointer", color: "#1A1509", fontSize: 12.5, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, marginTop: 10 }}>
+                    <Share size={15} /> {copied ? "LIEN COPIÉ !" : "PARTAGER CETTE FICHE"}
+                  </button>
                 </div>
-                <button onClick={share} style={{ display: "flex", alignItems: "center", gap: 6, background: `linear-gradient(145deg, ${C.goldSoft}, ${C.gold})`, border: "none", borderRadius: 9, padding: "8px 16px", cursor: "pointer", color: "#1A1509", fontSize: 12.5, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, marginTop: 10 }}>
-                  <Share size={15} /> {copied ? "LIEN COPIÉ !" : "PARTAGER CETTE FICHE"}
-                </button>
               </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "18px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: "wrap" }}>
-              <MikeFace avg10={avg10} votes={votes} size={84} />
-              <div>
-                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? formatNote(avg10) : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
-                <div style={{ fontSize: 12, color: C.dim2 }}>{votes} vote{votes !== 1 ? "s" : ""}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+                <MikeFace avg10={avg10} votes={votes} size={84} />
+                <div>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? formatNote(avg10) : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
+                  <div style={{ fontSize: 12, color: C.dim2 }}>{votes} vote{votes !== 1 ? "s" : ""}</div>
+                </div>
               </div>
             </div>
             <p style={{ color: C.dim, fontSize: 14, lineHeight: 1.7, marginBottom: 14 }}>{comic.bio}</p>
