@@ -1423,6 +1423,12 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
   const { avg10, votes } = overallAvg(ratings);
   const per = perCriteriaAvg(ratings, criteria);
   const radarData = criteria.map((c) => ({ subject: c.label, value: per[c.slug] || 0, fullMark: 10 }));
+  // Un score minimum valide est 1/10 (cf. canSubmitRating plus bas) : si des votes existent
+  // mais que les 3 critères ressortent à 0, ce n'est jamais un vrai résultat — ça veut dire que
+  // ces votes ont été enregistrés sous une autre catégorie (donc une autre grille de critères,
+  // avec d'autres criteria_id) que la catégorie actuelle de l'humoriste. Arrive quand un comic
+  // est recatégorisé après coup (cf. Dieudonné : noté sous "Stand-up", reclassé "Sketch" depuis).
+  const hasCriteriaBreakdown = votes > 0 && radarData.some((d) => d.value > 0);
   const canSubmitRating = criteria.length > 0 && criteria.every((c) => typeof draft[c.slug] === "number" && draft[c.slug] > 0);
 
   const submitRating = async () => {
@@ -1544,7 +1550,7 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
             {comic.spectacles?.length > 0 && <div style={{ fontSize: 13, color: C.dim2, marginBottom: 10 }}><strong style={{ color: C.text }}>Spectacles :</strong> {comic.spectacles.join(", ")}</div>}
             <SocialLinksRow comicId={comicId} />
 
-            {votes > 0 ? (
+            {hasCriteriaBreakdown ? (
               <div style={{ marginTop: 22, height: 260 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData} outerRadius="75%">
@@ -1561,6 +1567,10 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
                     />
                   </RadarChart>
                 </ResponsiveContainer>
+              </div>
+            ) : votes > 0 ? (
+              <div style={{ marginTop: 20, padding: 24, textAlign: "center", color: C.dim2, fontSize: 13, border: `1px dashed ${C.border}`, borderRadius: 12 }}>
+                Détail par critère indisponible pour l'instant (humoriste recatégorisé depuis les derniers votes) — la note globale de {formatNote(avg10)}/10 reste correcte.
               </div>
             ) : (
               <div style={{ marginTop: 20, padding: 24, textAlign: "center", color: C.dim2, fontSize: 13, border: `1px dashed ${C.border}`, borderRadius: 12 }}>
