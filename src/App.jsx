@@ -2314,7 +2314,7 @@ function ComicSelect({ comics, value, onChange, placeholder, disabled }) {
   const pick = (c) => { onChange(c.id); setQuery(""); setOpen(false); };
 
   return (
-    <div style={{ position: "relative", flex: "1 1 220px" }}>
+    <div style={{ position: "relative", flex: "1 1 0%", minWidth: 220 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 13px", opacity: disabled ? 0.5 : 1 }}>
         <Search size={14} color={C.dim2} />
         <input
