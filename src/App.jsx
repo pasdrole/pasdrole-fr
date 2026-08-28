@@ -92,7 +92,7 @@ const MIKE_EXPRESSIONS = [
 ];
 const MIKE_EXPRESSION_BY_SLUG = Object.fromEntries(MIKE_EXPRESSIONS.map((e) => [e.slug, e]));
 
-// Planche "réaction par note" de Mike (15 poses dédiées, dans public/mike-notes/) — pilote la
+// Planche "réaction par note" de Mike (15 poses dédiées, dans public/mikes-notes/) — pilote la
 // dérivation automatique (remplace l'ancien système à 8 grandes bandes), avec des paliers bien plus fins
 // (0.5 point à partir de 5/10) que les 8 grandes bandes d'origine. Chaque seuil couvre
 // [seuil, seuil suivant[, le dernier (9.5) jusqu'à 10 inclus. Toujours pas de vote -> "dormeur"
@@ -120,7 +120,7 @@ function mikeImageForNote(avg10) {
     if (avg10 >= t.min) file = t.file;
     else break;
   }
-  return `/mike-notes/${file}`;
+  return `/mikes-notes/${file}`;
 }
 
 // Petite tête de Mike réutilisable partout où une note s'affiche. `slug` prend le dessus
