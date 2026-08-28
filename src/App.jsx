@@ -2410,7 +2410,7 @@ function DuelPicker({ comics, onOpenMatch }) {
             <div style={{ color: C.dim2, fontSize: 13, textAlign: "center" }}>Chargement du face-à-face...</div>
           ) : (
             <>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", gap: 12, textAlign: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: isMobile ? 20 : 32, textAlign: "center", flexWrap: "wrap" }}>
                 <div>
                   <div style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{comicA.nom}</div>
                   <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: C.gold }}>{h2h?.votesA ?? 0}</div>
