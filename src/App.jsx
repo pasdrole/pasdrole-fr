@@ -92,35 +92,71 @@ const MIKE_EXPRESSIONS = [
 ];
 const MIKE_EXPRESSION_BY_SLUG = Object.fromEntries(MIKE_EXPRESSIONS.map((e) => [e.slug, e]));
 
-// Choisit automatiquement l'expression de Mike la plus adaptée à une note publique sur 10
-// (la moyenne des votes de la communauté), pour que le mascot réagisse partout où une note
-// s'affiche — et pas seulement sur les quelques fiches où un·e admin a choisi une expression
-// à la main pour l'avis rédaction. "dormeur" couvre le cas "pas encore noté".
-// "surpris", "blase" et "sarcastique" restent volontairement de côté : réservés à des usages
-// contextuels futurs (rebond de classement, fiche inactive, chambrage sur un combat...).
-function mikeExpressionForNote(avg10, votes) {
-  if (!votes) return "dormeur"; // pas encore noté
-  if (avg10 >= 9) return "mdr";
-  if (avg10 >= 7.5) return "heureux";
-  if (avg10 >= 6) return "fier";
-  if (avg10 >= 4.5) return "reflexion";
-  if (avg10 >= 3) return "sceptique";
-  if (avg10 >= 1.5) return "decu";
-  if (avg10 > 0) return "colere";
-  return "choque";
+// Planche "réaction par note" de Mike (15 poses dédiées, dans public/mike-notes/) — pilote la
+// dérivation automatique (remplace l'ancien système à 8 grandes bandes), avec des paliers bien plus fins
+// (0.5 point à partir de 5/10) que les 8 grandes bandes d'origine. Chaque seuil couvre
+// [seuil, seuil suivant[, le dernier (9.5) jusqu'à 10 inclus. Toujours pas de vote -> "dormeur"
+// (aucune des 15 poses ne couvre ce cas, cf. MikeFace).
+const MIKE_NOTE_THRESHOLDS = [
+  { min: 0, file: "0.png" },
+  { min: 1, file: "1.png" },
+  { min: 2, file: "2.png" },
+  { min: 3, file: "3.png" },
+  { min: 4, file: "4.png" },
+  { min: 5, file: "5.0.png" },
+  { min: 5.5, file: "5.5.png" },
+  { min: 6, file: "6.0.png" },
+  { min: 6.5, file: "6.5.png" },
+  { min: 7, file: "7.0.png" },
+  { min: 7.5, file: "7.5.png" },
+  { min: 8, file: "8.0.png" },
+  { min: 8.5, file: "8.5.png" },
+  { min: 9, file: "9.0.png" },
+  { min: 9.5, file: "9.5.png" },
+];
+function mikeImageForNote(avg10) {
+  let file = MIKE_NOTE_THRESHOLDS[0].file;
+  for (const t of MIKE_NOTE_THRESHOLDS) {
+    if (avg10 >= t.min) file = t.file;
+    else break;
+  }
+  return `/mike-notes/${file}`;
 }
 
 // Petite tête de Mike réutilisable partout où une note s'affiche. `slug` prend le dessus
-// s'il est fourni (choix éditorial explicite) ; sinon dérivée automatiquement de la note.
+// s'il est fourni (choix éditorial explicite, parmi les 12 poses "pleine tête" ci-dessus) ;
+// sinon la note publique pilote la planche fine à 15 paliers (mikeImageForNote), sauf s'il n'y
+// a encore aucun vote, où l'on garde la pose "dormeur".
 function MikeFace({ slug, avg10, votes, size = 28, style }) {
-  const finalSlug = slug || mikeExpressionForNote(avg10, votes);
-  const expr = MIKE_EXPRESSION_BY_SLUG[finalSlug];
-  if (!expr) return null;
+  if (!slug && !votes) {
+    const dormeur = MIKE_EXPRESSION_BY_SLUG.dormeur;
+    return (
+      <img
+        src={`/${dormeur.file}`}
+        alt={dormeur.label}
+        title={dormeur.label}
+        style={{ width: size, height: size, objectFit: "contain", flexShrink: 0, ...style }}
+      />
+    );
+  }
+  if (slug) {
+    const expr = MIKE_EXPRESSION_BY_SLUG[slug];
+    if (!expr) return null;
+    return (
+      <img
+        src={`/${expr.file}`}
+        alt={expr.label}
+        title={expr.label}
+        style={{ width: size, height: size, objectFit: "contain", flexShrink: 0, ...style }}
+      />
+    );
+  }
+  const label = `Note : ${formatNote(avg10)}/10`;
   return (
     <img
-      src={`/${expr.file}`}
-      alt={expr.label}
-      title={expr.label}
+      src={mikeImageForNote(avg10)}
+      alt={label}
+      title={label}
       style={{ width: size, height: size, objectFit: "contain", flexShrink: 0, ...style }}
     />
   );
@@ -1172,23 +1208,23 @@ function RedactionCard({ comic }) {
         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, letterSpacing: 1, color: C.gold }}>L'AVIS DE MIKE</span>
       </div>
       {comic.note_redaction != null && (() => {
-        // Priorité à l'expression choisie à la main par l'admin ; à défaut, on la dérive
-        // automatiquement de la note (mieux qu'une fiche sans visage de Mike du tout).
-        const expression = MIKE_EXPRESSION_BY_SLUG[comic.expression_redaction]
-          || MIKE_EXPRESSION_BY_SLUG[mikeExpressionForNote(Number(comic.note_redaction), 1)];
+        // Priorité à l'expression choisie à la main par l'admin (les 12 poses "pleine tête") ;
+        // à défaut, la planche fine à 15 paliers pilotée par la note (mieux qu'une fiche sans
+        // visage de Mike du tout).
+        const manual = MIKE_EXPRESSION_BY_SLUG[comic.expression_redaction];
+        const imgSrc = manual ? `/${manual.file}` : mikeImageForNote(Number(comic.note_redaction));
+        const imgLabel = manual ? manual.label : `Note : ${formatNote(Number(comic.note_redaction))}/10`;
         // Reprend le look du panneau du logo (fond noir, liseré doré) que Mike "brandit" —
         // son expression déborde légèrement sur le panneau, comme sa tête sur le logo principal.
         return (
           <div style={{ display: "flex", alignItems: "center", marginBottom: comic.avis_redaction ? 16 : 2 }}>
-            {expression && (
-              <img src={`/${expression.file}`} alt={expression.label} title={expression.label} style={{
-                width: 54, height: 54, objectFit: "contain", flexShrink: 0, position: "relative", zIndex: 1,
-                marginRight: -14, filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.6))",
-              }} />
-            )}
+            <img src={imgSrc} alt={imgLabel} title={imgLabel} style={{
+              width: 54, height: 54, objectFit: "contain", flexShrink: 0, position: "relative", zIndex: 1,
+              marginRight: -14, filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.6))",
+            }} />
             <div style={{
               background: "#141018", border: `2px solid ${C.gold}`, borderRadius: 10,
-              padding: expression ? "9px 16px 9px 24px" : "9px 16px", display: "flex", alignItems: "baseline", gap: 3,
+              padding: "9px 16px 9px 24px", display: "flex", alignItems: "baseline", gap: 3,
             }}>
               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: C.gold, lineHeight: 1 }}>
                 {formatNote(Number(comic.note_redaction))}
