@@ -761,7 +761,6 @@ function Hero({ comicsWithStats, onOpen }) {
                   {globalAvg > 0 ? formatNote(globalAvg) : "—"} <span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span>
                 </div>
               </div>
-              <Micros value={globalAvg} />
               <div style={{ fontSize: 11.5, color: C.dim2, marginTop: 8 }}>Basée sur {allVotes} vote{allVotes !== 1 ? "s" : ""}</div>
             </div>
             <RecentRankMovesCard comicsWithStats={comicsWithStats} onOpen={onOpen} />
@@ -809,9 +808,8 @@ function TopStrip({ comicsWithStats, onOpen, limit = 10, title = "TOP DU MOMENT"
               <PhotoPlaceholder size={74} label={c.nom} imgSrc={c.photo_url} />
             </div>
             <div style={{ color: C.text, fontSize: 13.5, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>{c.nom}</div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-              <MikeFace avg10={c.avg10} votes={c.votes} size={42} />
-              <div style={{ color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}<span style={{ fontSize: 11, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ color: C.gold, fontFamily: "'Bebas Neue', sans-serif", fontSize: 24 }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}<span style={{ fontSize: 13, color: C.dim2, fontFamily: "Inter" }}>/10</span></div>
             </div>
             <div style={{ textAlign: "center", color: C.dim2, fontSize: 10.5 }}>({c.votes})</div>
           </button>
@@ -917,9 +915,8 @@ function ComicGrid({ comicsWithStats, onOpen, title }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ color: C.text, fontSize: 14.5, fontWeight: 700, marginBottom: 3 }}>{c.nom}</div>
               <div style={{ color: C.dim2, fontSize: 11.5, marginBottom: 10 }}>{c.pays} · depuis {c.debut}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <MikeFace avg10={c.avg10} votes={c.votes} size={40} />
-                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: C.gold }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}</span>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 21, color: C.gold }}>{c.avg10 > 0 ? formatNote(c.avg10) : "—"}<span style={{ fontSize: 12, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
                 <span style={{ fontSize: 11, color: C.dim2 }}>({c.votes} votes)</span>
               </div>
             </div>
@@ -1536,11 +1533,12 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
                 </button>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: "wrap" }}>
-              <MikeFace avg10={avg10} votes={votes} size={54} />
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? formatNote(avg10) : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
-              <Micros value={avg10} size={18} />
-              <span style={{ fontSize: 12, color: C.dim2 }}>{votes} vote{votes !== 1 ? "s" : ""}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "18px 0", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: "wrap" }}>
+              <MikeFace avg10={avg10} votes={votes} size={84} />
+              <div>
+                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 38, color: C.gold }}>{avg10 > 0 ? formatNote(avg10) : "—"}<span style={{ fontSize: 16, color: C.dim2, fontFamily: "Inter" }}>/10</span></span>
+                <div style={{ fontSize: 12, color: C.dim2 }}>{votes} vote{votes !== 1 ? "s" : ""}</div>
+              </div>
             </div>
             <p style={{ color: C.dim, fontSize: 14, lineHeight: 1.7, marginBottom: 14 }}>{comic.bio}</p>
             {comic.spectacles?.length > 0 && <div style={{ fontSize: 13, color: C.dim2, marginBottom: 10 }}><strong style={{ color: C.text }}>Spectacles :</strong> {comic.spectacles.join(", ")}</div>}
@@ -1554,6 +1552,13 @@ function ComicDetail({ comicId, user, onBack, onRequireAuth, onOpenGenre }) {
                     <PolarAngleAxis dataKey="subject" tick={{ fill: C.dim, fontSize: 11 }} />
                     <PolarRadiusAxis domain={[0, 10]} tick={false} axisLine={false} />
                     <Radar dataKey="value" stroke={C.gold} fill={C.gold} fillOpacity={0.32} />
+                    <Tooltip
+                      formatter={(value) => [`${formatNote(value)}/10`, "Note"]}
+                      contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12.5 }}
+                      labelStyle={{ color: C.dim2, marginBottom: 2 }}
+                      itemStyle={{ color: C.gold }}
+                      cursor={{ stroke: C.gold, strokeOpacity: 0.3 }}
+                    />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
