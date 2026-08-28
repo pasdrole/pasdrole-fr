@@ -87,7 +87,7 @@ const MIKE_EXPRESSIONS = [
   { slug: "reflexion", label: "Réflexion", emoji: "🤔", file: "08_reflexion.svg" },
   { slug: "choque", label: "Choqué", emoji: "😱", file: "09_choque.svg" },
   { slug: "fier", label: "Fier", emoji: "😌", file: "10_fier.svg" },
-  { slug: "dormeur", label: "Dormeur", emoji: "😴", file: "11_dormeur.svg" },
+  { slug: "dormeur", label: "Dormeur", emoji: "😴", file: "mikes-notes/mike_19_sleeping.png" },
   { slug: "sarcastique", label: "Sarcastique", emoji: "😏", file: "12_sarcastique.svg" },
 ];
 const MIKE_EXPRESSION_BY_SLUG = Object.fromEntries(MIKE_EXPRESSIONS.map((e) => [e.slug, e]));
