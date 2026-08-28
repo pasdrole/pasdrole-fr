@@ -2151,6 +2151,7 @@ function MatchFighterCard({ comic, picked, isWinner, pct, disabled, onPick }) {
   );
 }
 function MatchPage({ comicA, comicB, matchSlug, onNewMatch, onVoted, noMoreDuels }) {
+  const isMobile = useIsMobile();
   const [votes, setVotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myPick, setMyPick] = useState(null); // id de l'humoriste choisi par ce visiteur
@@ -2221,7 +2222,7 @@ function MatchPage({ comicA, comicB, matchSlug, onNewMatch, onVoted, noMoreDuels
         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 2, color: C.dim }}>MODE MATCH</span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "center", gap: 18, flexWrap: isMobile ? "nowrap" : "wrap" }}>
         <MatchFighterCard comic={comicA} picked={!!myPick} isWinner={myPick === comicA.id} pct={pctFor(comicA.id)} disabled={!!myPick || loading} onPick={() => vote(comicA)} />
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: C.dim2 }}>VS</div>
         <MatchFighterCard comic={comicB} picked={!!myPick} isWinner={myPick === comicB.id} pct={pctFor(comicB.id)} disabled={!!myPick || loading} onPick={() => vote(comicB)} />
